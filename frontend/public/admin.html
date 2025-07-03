@@ -1,0 +1,53 @@
+
+<!-- frontend/public/admin.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - EzBuy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>⚡ EzBuy</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/products">Products</a></li>
+                <li><a href="/cart">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="/orders">Orders</a></li>
+                <li id="login-link"><a href="/login">Login</a></li>
+                <li id="admin-link" style="display: none;"><a href="/admin" class="active">Admin</a></li>
+                <li id="logout-link" style="display: none;"><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="admin-container">
+            <h1>Admin Panel</h1>
+            <div class="admin-tabs">
+                <button class="admin-tab active" onclick="showAdminTab('dashboard')">Dashboard</button>
+                <button class="admin-tab" onclick="showAdminTab('products')">Products</button>
+                <button class="admin-tab" onclick="showAdminTab('orders')">Orders</button>
+            </div>
+            <div id="admin-content" class="admin-content">
+                <!-- Admin content will be loaded here -->
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+            if (currentUser?.role !== 'admin') {
+                alert('Admin access required');
+                window.location.href = '/';
+                return;
+            }
+            showAdminTab('dashboard');
+        });

@@ -1,0 +1,76 @@
+
+<!--frontend/public/index.html-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EzBuy - Premium Electrical Devices</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>⚡ EzBuy</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/products">Products</a></li>
+                <li><a href="/cart">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="/orders">Orders</a></li>
+                <li id="login-link"><a href="/login">Login</a></li>
+                <li id="admin-link" style="display: none;"><a href="/admin">Admin</a></li>
+                <li id="logout-link" style="display: none;"><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Premium Electrical Devices</h1>
+                <p>Discover the latest in technology and electronics</p>
+                <a href="/products" class="btn-primary">Shop Now</a>
+            </div>
+        </section>
+
+        <section class="featured-products">
+            <div class="container">
+                <h2>Featured Products</h2>
+                <div id="featured-products-grid" class="products-grid">
+                    <!-- Featured products will be loaded here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        // Load featured products on home page
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+            await loadFeaturedProducts();
+        });
+
+        async function loadFeaturedProducts() {
+            try {
+                const response = await fetch('/api/products?limit=4');
+                const products = await response.json();
+                
+                const grid = document.getElementById('featured-products-grid');
+                grid.innerHTML = products.slice(0, 4).map(product => `
+                    <div class="product-card">
+                        <img src="${product.image}" alt="${product.name}">
+                        <h3>${product.name}</h3>
+                        <p class="price">${product.price}</p>
+                        <button onclick="addToCart('${product._id}')" class="btn-secondary">Add to Cart</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading featured products:', error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!-- frontend/public/orders.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders - EzBuy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>⚡ EzBuy</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/products">Products</a></li>
+                <li><a href="/cart">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="/orders" class="active">Orders</a></li>
+                <li id="login-link"><a href="/login">Login</a></li>
+                <li id="admin-link" style="display: none;"><a href="/admin">Admin</a></li>
+                <li id="logout-link" style="display: none;"><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container">
+        <h1>My Orders</h1>
+        <div id="orders-container">
+            <!-- Orders will be loaded here -->
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+            await loadOrders();
+        });
+    </script>
+</body>
+</html>
+
+    </script>
+</body>
+</html>

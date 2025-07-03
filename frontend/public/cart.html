@@ -1,0 +1,49 @@
+<!-- frontend/public/cart.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart - EzBuy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>⚡ EzBuy</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/products">Products</a></li>
+                <li><a href="/cart" class="active">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="/orders">Orders</a></li>
+                <li id="login-link"><a href="/login">Login</a></li>
+                <li id="admin-link" style="display: none;"><a href="/admin">Admin</a></li>
+                <li id="logout-link" style="display: none;"><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="cart-container">
+            <h1>Shopping Cart</h1>
+            <div id="cart-items">
+                <!-- Cart items will be loaded here -->
+            </div>
+            <div id="cart-summary">
+                <!-- Cart summary will be loaded here -->
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+            await loadCartItems();
+        });
+    </script>
+</body>
+</html>
+

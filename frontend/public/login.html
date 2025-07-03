@@ -1,0 +1,90 @@
+
+<!--frontend/public/login.html-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - EzBuy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>⚡ EzBuy</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/products">Products</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="auth-container">
+        <div class="auth-form">
+            <h2 id="form-title">Login</h2>
+            <form id="auth-form">
+                <div id="register-fields" style="display: none;">
+                    <input type="text" id="username" placeholder="Username" required>
+                </div>
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit" class="btn-primary">Login</button>
+            </form>
+            <p>
+                <span id="switch-text">Don't have an account?</span>
+                <a href="#" id="switch-mode">Register</a>
+            </p>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        let isLoginMode = true;
+
+        document.getElementById('switch-mode').addEventListener('click', (e) => {
+            e.preventDefault();
+            isLoginMode = !isLoginMode;
+            
+            const title = document.getElementById('form-title');
+            const registerFields = document.getElementById('register-fields');
+            const submitBtn = document.querySelector('button[type="submit"]');
+            const switchText = document.getElementById('switch-text');
+            const switchMode = document.getElementById('switch-mode');
+            
+            if (isLoginMode) {
+                title.textContent = 'Login';
+                registerFields.style.display = 'none';
+                submitBtn.textContent = 'Login';
+                switchText.textContent = "Don't have an account?";
+                switchMode.textContent = 'Register';
+            } else {
+                title.textContent = 'Register';
+                registerFields.style.display = 'block';
+                submitBtn.textContent = 'Register';
+                switchText.textContent = 'Already have an account?';
+                switchMode.textContent = 'Login';
+            }
+        });
+
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                if (isLoginMode) {
+                    await login(email, password);
+                } else {
+                    const username = document.getElementById('username').value;
+                    await register(username, email, password);
+                }
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+    </script>
+</body>
+</html>

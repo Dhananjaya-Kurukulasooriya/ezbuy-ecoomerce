@@ -1,0 +1,138 @@
+// frontend/public/products.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - EzBuy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>⚡ EzBuy</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/products" class="active">Products</a></li>
+                <li><a href="/cart">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="/orders">Orders</a></li>
+                <li id="login-link"><a href="/login">Login</a></li>
+                <li id="admin-link" style="display: none;"><a href="/admin">Admin</a></li>
+                <li id="logout-link" style="display: none;"><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="products-header">
+            <h1>Electrical Devices</h1>
+            <div class="filters">
+                <select id="category-filter">
+                    <option value="">All Categories</option>
+                </select>
+                <select id="brand-filter">
+                    <option value="">All Brands</option>
+                </select>
+                <input type="text" id="search-input" placeholder="Search products...">
+            </div>
+        </div>
+
+        <div id="products-grid" class="products-grid">
+            <!-- Products will be loaded here -->
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+            await loadProducts();
+            await loadFilters();
+        });
+
+        // Filter event listeners
+        document.getElementById('category-filter').addEventListener('change', loadProducts);
+        document.getElementById('brand-filter').addEventListener('change', loadProducts);
+        document.getElementById('search-input').addEventListener('input', debounce(loadProducts, 500));
+
+        async function loadProducts() {
+            try {
+                const category = document.getElementById('category-filter').value;
+                const brand = document.getElementById('brand-filter').value;
+                const search = document.getElementById('search-input').value;
+                
+                let url = '/api/products?';
+                if (category) url += `category=${category}&`;
+                if (brand) url += `brand=${brand}&`;
+                if (search) url += `search=${search}&`;
+                
+                const response = await fetch(url);
+                const products = await response.json();
+                
+                const grid = document.getElementById('products-grid');
+                grid.innerHTML = products.map(product => `
+                    <div class="product-card">
+                        <img src="${product.image}" alt="${product.name}">
+                        <h3>${product.name}</h3>
+                        <p class="description">${product.description}</p>
+                        <p class="brand">Brand: ${product.brand}</p>
+                        <p class="price">${product.price}</p>
+                        <p class="stock">Stock: ${product.stock}</p>
+                        <button onclick="addToCart('${product._id}')" 
+                                class="btn-secondary" 
+                                ${product.stock === 0 ? 'disabled' : ''}>
+                            ${product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                        </button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        async function loadFilters() {
+            try {
+                // Load categories
+                const categoriesResponse = await fetch('/api/categories');
+                const categories = await categoriesResponse.json();
+                
+                const categorySelect = document.getElementById('category-filter');
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+
+                // Load brands
+                const brandsResponse = await fetch('/api/brands');
+                const brands = await brandsResponse.json();
+                
+                const brandSelect = document.getElementById('brand-filter');
+                brands.forEach(brand => {
+                    const option = document.createElement('option');
+                    option.value = brand;
+                    option.textContent = brand;
+                    brandSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+    </script>
+</body>
+</html>
