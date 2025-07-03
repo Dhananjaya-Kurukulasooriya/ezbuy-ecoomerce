@@ -1,9 +1,8 @@
-// order-service/server.js
+// order-service/server.js - CORRECTED VERSION
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const axios = require('axios');
-
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -52,7 +51,7 @@ const orderSchema = new mongoose.Schema({
 
 const Order = mongoose.model('Order', orderSchema);
 
-// Middleware to validate user token
+// User Authentication Middleware
 const validateUser = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
@@ -62,18 +61,21 @@ const validateUser = async (req, res, next) => {
       return res.status(401).json({ error: 'Access token required' });
     }
 
-    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:3001';
     const response = await axios.get(`${userServiceUrl}/api/auth/validate`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000
     });
 
     req.user = response.data.user;
     next();
   } catch (error) {
+    console.error('User validation error:', error.message);
     return res.status(401).json({ error: 'Invalid token' });
   }
 };
 
+// Admin Authentication Middleware
 const adminAuth = async (req, res, next) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -131,19 +133,45 @@ const adminAuth = async (req, res, next) => {
     }
 };
 
-// ADD THESE NEW ADMIN ROUTES
+// ADMIN-ONLY ROUTES (Must come first to avoid conflicts)
+
+// Admin validation endpoint 
+app.post('/api/admin/validate-admin', adminAuth, async (req, res) => {
+    try {
+        res.json({
+            valid: true,
+            user: {
+                id: req.user.id,
+                username: req.user.username,
+                email: req.user.email,
+                role: req.user.role || 'admin'
+            }
+        });
+    } catch (error) {
+        console.error('Admin validation error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
 
 // Get all orders for admin dashboard
 app.get('/api/admin/orders', adminAuth, async (req, res) => {
     try {
-        const orders = await Order.find()
+        const { status, page = 1, limit = 100 } = req.query;
+        const query = status ? { status } : {};
+
+        const orders = await Order.find(query)
             .sort({ orderDate: -1 })
-            .limit(100); // Limit for performance
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit));
 
-        // If you need user details, you might need to call user-service
-        // for each order's userId, or include user info when creating orders
+        const total = await Order.countDocuments(query);
 
-        res.json({ orders });
+        res.json({
+            orders,
+            totalPages: Math.ceil(total / limit),
+            currentPage: parseInt(page),
+            total
+        });
     } catch (error) {
         console.error('Get admin orders error:', error);
         res.status(500).json({ error: 'Failed to fetch orders' });
@@ -156,8 +184,9 @@ app.get('/api/admin/orders/stats', adminAuth, async (req, res) => {
         // Total orders
         const totalOrders = await Order.countDocuments();
         
-        // Total revenue
+        // Total revenue (only from completed orders)
         const revenueResult = await Order.aggregate([
+            { $match: { status: { $in: ['delivered', 'shipped'] } } },
             { $group: { _id: null, total: { $sum: '$totalAmount' } } }
         ]);
         const totalRevenue = revenueResult[0]?.total || 0;
@@ -187,24 +216,6 @@ app.get('/api/admin/orders/stats', adminAuth, async (req, res) => {
     }
 });
 
-// Admin validation endpoint 
-app.post('/api/admin/validate-admin', adminAuth, async (req, res) => {
-    try {
-        res.json({
-            valid: true,
-            user: {
-                id: req.user.id,
-                username: req.user.username,
-                email: req.user.email,
-                role: req.user.role || 'admin'
-            }
-        });
-    } catch (error) {
-        console.error('Admin validation error:', error);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
 // Get detailed order information (admin only)
 app.get('/api/admin/orders/:orderId', adminAuth, async (req, res) => {
     try {
@@ -223,7 +234,31 @@ app.get('/api/admin/orders/:orderId', adminAuth, async (req, res) => {
     }
 });
 
-// UPDATE YOUR EXISTING ORDER STATUS ROUTE - Add adminAuth middleware
+// Delete order (admin only)
+app.delete('/api/admin/orders/:orderId', adminAuth, async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        
+        const order = await Order.findByIdAndDelete(orderId);
+        
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        console.log(`🗑️ Order deleted by admin:`, {
+            orderId,
+            adminId: req.user.id,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({ message: 'Order deleted successfully' });
+    } catch (error) {
+        console.error('Delete order error:', error);
+        res.status(500).json({ error: 'Failed to delete order' });
+    }
+});
+
+// Update order status (Admin only)
 app.patch('/api/orders/:id/status', adminAuth, async (req, res) => {
     try {
         const { id } = req.params;
@@ -264,46 +299,33 @@ app.patch('/api/orders/:id/status', adminAuth, async (req, res) => {
     }
 });
 
-// DELETE order (admin only, use with caution)
-app.delete('/api/admin/orders/:orderId', adminAuth, async (req, res) => {
-    try {
-        const { orderId } = req.params;
-        
-        const order = await Order.findByIdAndDelete(orderId);
-        
-        if (!order) {
-            return res.status(404).json({ error: 'Order not found' });
-        }
+// USER ROUTES
 
-        console.log(`🗑️ Order deleted by admin:`, {
-            orderId,
-            adminId: req.user.id,
-            timestamp: new Date().toISOString()
-        });
-
-        res.json({ message: 'Order deleted successfully' });
-    } catch (error) {
-        console.error('Delete order error:', error);
-        res.status(500).json({ error: 'Failed to delete order' });
-    }
-});
-
-
-// Routes
 // Create order
 app.post('/api/orders', validateUser, async (req, res) => {
   try {
     const { items, shippingAddress, paymentMethod } = req.body;
     const userId = req.user.userId;
 
+    // Validate required fields
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Items are required' });
+    }
+
+    if (!shippingAddress || !paymentMethod) {
+        return res.status(400).json({ error: 'Shipping address and payment method are required' });
+    }
+
     // Validate products and calculate total
-    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3002';
+    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3002';
     let totalAmount = 0;
     const orderItems = [];
 
     for (const item of items) {
       try {
-        const productResponse = await axios.get(`${productServiceUrl}/api/products/${item.productId}`);
+        const productResponse = await axios.get(`${productServiceUrl}/api/products/${item.productId}`, {
+            timeout: 5000
+        });
         const product = productResponse.data;
 
         if (product.stock < item.quantity) {
@@ -326,8 +348,10 @@ app.post('/api/orders', validateUser, async (req, res) => {
         // Update product stock
         await axios.patch(`${productServiceUrl}/api/products/${product._id}/stock`, {
           quantity: -item.quantity
-        });
+        }, { timeout: 5000 });
+
       } catch (error) {
+        console.error(`Product validation error for ${item.productId}:`, error.message);
         return res.status(400).json({ error: `Invalid product: ${item.productId}` });
       }
     }
@@ -338,10 +362,21 @@ app.post('/api/orders', validateUser, async (req, res) => {
       items: orderItems,
       totalAmount,
       shippingAddress,
-      paymentMethod
+      paymentMethod,
+      orderDate: new Date(),
+      updatedAt: new Date()
     });
 
     await order.save();
+
+    console.log(`📦 Order created:`, {
+        orderId: order._id,
+        userId: userId,
+        totalAmount: totalAmount,
+        itemCount: orderItems.length,
+        timestamp: new Date().toISOString()
+    });
+
     res.status(201).json(order);
   } catch (error) {
     console.error('Order creation error:', error);
@@ -356,6 +391,7 @@ app.get('/api/orders', validateUser, async (req, res) => {
     const orders = await Order.find({ userId }).sort({ orderDate: -1 });
     res.json(orders);
   } catch (error) {
+    console.error('Get user orders error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -372,35 +408,12 @@ app.get('/api/orders/:id', validateUser, async (req, res) => {
     
     res.json(order);
   } catch (error) {
+    console.error('Get single order error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Update order status (Admin only)
-app.patch('/api/orders/:id/status', validateUser, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const { status } = req.body;
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status, updatedAt: Date.now() },
-      { new: true }
-    );
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    res.json(order);
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Cancel order
+// Cancel order (User can cancel their own orders)
 app.patch('/api/orders/:id/cancel', validateUser, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -411,84 +424,35 @@ app.patch('/api/orders/:id/cancel', validateUser, async (req, res) => {
     }
 
     if (order.status !== 'pending' && order.status !== 'confirmed') {
-      return res.status(400).json({ error: 'Order cannot be cancelled' });
+      return res.status(400).json({ error: 'Order cannot be cancelled at this stage' });
     }
 
     // Restore product stock
-    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3002';
-    for (const item of order.items) {
-      await axios.patch(`${productServiceUrl}/api/products/${item.productId}/stock`, {
-        quantity: item.quantity
-      });
+    const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3002';
+    try {
+        for (const item of order.items) {
+          await axios.patch(`${productServiceUrl}/api/products/${item.productId}/stock`, {
+            quantity: item.quantity
+          }, { timeout: 5000 });
+        }
+    } catch (error) {
+        console.error('Stock restoration error:', error.message);
+        // Continue with cancellation even if stock update fails
     }
 
     order.status = 'cancelled';
-    order.updatedAt = Date.now();
+    order.updatedAt = new Date();
     await order.save();
+
+    console.log(`❌ Order cancelled by user:`, {
+        orderId: order._id,
+        userId: userId,
+        timestamp: new Date().toISOString()
+    });
 
     res.json(order);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Get all orders (Admin only)
-app.get('/api/admin/orders', validateUser, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const { status, page = 1, limit = 10 } = req.query;
-    const query = status ? { status } : {};
-
-    const orders = await Order.find(query)
-      .sort({ orderDate: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Order.countDocuments(query);
-
-    res.json({
-      orders,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Get order statistics (Admin only)
-app.get('/api/admin/orders/stats', validateUser, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const stats = await Order.aggregate([
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
-          totalAmount: { $sum: '$totalAmount' }
-        }
-      }
-    ]);
-
-    const totalOrders = await Order.countDocuments();
-    const totalRevenue = await Order.aggregate([
-      { $match: { status: { $in: ['delivered', 'shipped'] } } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-
-    res.json({
-      statusStats: stats,
-      totalOrders,
-      totalRevenue: totalRevenue[0]?.total || 0
-    });
-  } catch (error) {
+    console.error('Cancel order error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -498,7 +462,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', service: 'order-service' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Order Service running on port ${PORT}`);
+// Database connection handler
+mongoose.connection.once('open', () => {
+  console.log('Connected to MongoDB');
 });
 
+mongoose.connection.on('error', (error) => {
+  console.error('MongoDB connection error:', error);
+});
+
+app.listen(PORT, () => {
+  console.log(`Order Service running on port ${PORT}`);
+  console.log('🔒 Admin authentication enabled for order management');
+  console.log('👥 User authentication enabled for order operations');
+});

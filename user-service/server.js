@@ -1,13 +1,15 @@
-// user-service/server.js
+// user-service/server.js - CORRECTED VERSION
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken'); // REMOVED DUPLICATE
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// JWT Secret - use consistent secret
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Middleware
 app.use(express.json());
@@ -39,13 +41,14 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
     req.user = user;
     next();
   });
 };
-// Admin Authentication Middleware (add this function)
+
+// Admin Authentication Middleware - CORRECTED
 const adminAuth = async (req, res, next) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -57,7 +60,7 @@ const adminAuth = async (req, res, next) => {
             });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findById(decoded.userId).select('-password');
         
         if (!user) {
@@ -109,6 +112,7 @@ const adminAuth = async (req, res, next) => {
         });
     }
 };
+
 // Routes
 // Register
 app.post('/api/auth/register', async (req, res) => {
@@ -142,56 +146,9 @@ app.post('/api/auth/register', async (req, res) => {
       user: { id: user._id, username: user.username, email: user.email, role: user.role }
     });
   } catch (error) {
+    console.error('Register error:', error);
     res.status(500).json({ error: 'Server error' });
   }
-});
-
-app.post('/api/auth/validate-admin', adminAuth, async (req, res) => {
-    try {
-        res.json({
-            valid: true,
-            user: {
-                id: req.user._id,
-                username: req.user.username,
-                email: req.user.email,
-                role: req.user.role
-            }
-        });
-    } catch (error) {
-        console.error('Admin validation error:', error);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// Token validation endpoint for other services (add this route)
-app.get('/api/auth/validate-token', async (req, res) => {
-    try {
-        const token = req.header('Authorization')?.replace('Bearer ', '');
-        
-        if (!token) {
-            return res.status(401).json({ valid: false });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.userId).select('-password');
-        
-        if (!user) {
-            return res.status(401).json({ valid: false });
-        }
-
-        res.json({
-            valid: true,
-            user: {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                isAdmin: user.role === 'admin'
-            }
-        });
-    } catch (error) {
-        res.status(401).json({ valid: false });
-    }
 });
 
 // Login
@@ -211,10 +168,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    // Generate JWT
+    // Generate JWT - CONSISTENT TOKEN STRUCTURE
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your-secret-key',
+      JWT_SECRET,
       { expiresIn: '24h' }
     );
 
@@ -224,8 +181,59 @@ app.post('/api/auth/login', async (req, res) => {
       user: { id: user._id, username: user.username, email: user.email, role: user.role }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+// Admin validation endpoint - CORRECTED
+app.post('/api/auth/validate-admin', adminAuth, async (req, res) => {
+    try {
+        res.json({
+            valid: true,
+            user: {
+                id: req.user._id,
+                username: req.user.username,
+                email: req.user.email,
+                role: req.user.role
+            }
+        });
+    } catch (error) {
+        console.error('Admin validation error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Token validation endpoint for other services - CORRECTED
+app.get('/api/auth/validate-token', async (req, res) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({ valid: false });
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(decoded.userId).select('-password');
+        
+        if (!user) {
+            return res.status(401).json({ valid: false });
+        }
+
+        res.json({
+            valid: true,
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                isAdmin: user.role === 'admin'
+            }
+        });
+    } catch (error) {
+        console.error('Token validation error:', error);
+        res.status(401).json({ valid: false });
+    }
 });
 
 // Get user profile
@@ -234,11 +242,12 @@ app.get('/api/user/profile', authenticateToken, async (req, res) => {
     const user = await User.findById(req.user.userId).select('-password');
     res.json(user);
   } catch (error) {
+    console.error('Profile error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Validate token (for other services)
+// Validate token (for other services) - EXISTING ROUTE
 app.get('/api/auth/validate', authenticateToken, (req, res) => {
   res.json({ valid: true, user: req.user });
 });
@@ -250,5 +259,5 @@ app.get('/health', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`User Service running on port ${PORT}`);
+  console.log(`Using JWT Secret: ${JWT_SECRET ? 'Set' : 'Not Set'}`);
 });
-

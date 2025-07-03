@@ -1,4 +1,4 @@
-// product-service/server.js
+// product-service/server.js - CORRECTED VERSION
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -174,6 +174,7 @@ const initializeProducts = async () => {
   }
 };
 
+// Admin Authentication Middleware
 const adminAuth = async (req, res, next) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -231,8 +232,8 @@ const adminAuth = async (req, res, next) => {
     }
 };
 
+// PUBLIC ROUTES (No authentication required)
 
-// Routes
 // Get all products
 app.get('/api/products', async (req, res) => {
   try {
@@ -256,6 +257,7 @@ app.get('/api/products', async (req, res) => {
     const products = await Product.find(query);
     res.json(products);
   } catch (error) {
+    console.error('Get products error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -269,47 +271,7 @@ app.get('/api/products/:id', async (req, res) => {
     }
     res.json(product);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Create product (Admin only)
-app.post('/api/products', async (req, res) => {
-  try {
-    const product = new Product(req.body);
-    await product.save();
-    res.status(201).json(product);
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Update product (Admin only)
-app.put('/api/products/:id', async (req, res) => {
-  try {
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, updatedAt: Date.now() },
-      { new: true }
-    );
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    res.json(product);
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Delete product (Admin only)
-app.delete('/api/products/:id', async (req, res) => {
-  try {
-    const product = await Product.findByIdAndDelete(req.params.id);
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    res.json({ message: 'Product deleted successfully' });
-  } catch (error) {
+    console.error('Get product error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -320,6 +282,7 @@ app.get('/api/categories', async (req, res) => {
     const categories = await Product.distinct('category');
     res.json(categories);
   } catch (error) {
+    console.error('Get categories error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -330,48 +293,17 @@ app.get('/api/brands', async (req, res) => {
     const brands = await Product.distinct('brand');
     res.json(brands);
   } catch (error) {
+    console.error('Get brands error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Update stock
-app.patch('/api/products/:id/stock', async (req, res) => {
-  try {
-    const { quantity } = req.body;
-    const product = await Product.findById(req.params.id);
-    
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
+// ADMIN-ONLY ROUTES (Authentication required)
 
-    product.stock = Math.max(0, product.stock + quantity);
-    await product.save();
-
-    res.json({ stock: product.stock });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', service: 'product-service' });
-});
-
-// Initialize products on startup
-mongoose.connection.once('open', () => {
-  initializeProducts();
-});
-
-app.listen(PORT, () => {
-  console.log(`Product Service running on port ${PORT}`);
-});
-
-
-
+// Create product (Admin only)
 app.post('/api/products', adminAuth, async (req, res) => {
     try {
-        const { name, description, price, category, brand, stock, image } = req.body;
+        const { name, description, price, category, brand, stock, image, specifications } = req.body;
 
         // Enhanced validation
         if (!name || !description || !category || !brand) {
@@ -386,7 +318,6 @@ app.post('/api/products', adminAuth, async (req, res) => {
             return res.status(400).json({ error: 'Stock cannot be negative' });
         }
 
-        // Your existing product creation logic here
         const product = new Product({
             name: name.trim(),
             description: description.trim(),
@@ -394,7 +325,10 @@ app.post('/api/products', adminAuth, async (req, res) => {
             category: category.trim(),
             brand: brand.trim(),
             stock: parseInt(stock),
-            image: image?.trim() || 'https://via.placeholder.com/300x200?text=Product+Image'
+            image: image?.trim() || 'https://via.placeholder.com/300x200?text=Product+Image',
+            specifications: specifications || {},
+            createdAt: new Date(),
+            updatedAt: new Date()
         });
 
         await product.save();
@@ -413,11 +347,11 @@ app.post('/api/products', adminAuth, async (req, res) => {
     }
 });
 
-// UPDATE: Add adminAuth to UPDATE route
+// Update product (Admin only)
 app.put('/api/products/:id', adminAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, price, category, brand, stock, image } = req.body;
+        const { name, description, price, category, brand, stock, image, specifications } = req.body;
 
         // Enhanced validation
         if (!name || !description || !category || !brand) {
@@ -442,6 +376,7 @@ app.put('/api/products/:id', adminAuth, async (req, res) => {
                 brand: brand.trim(),
                 stock: parseInt(stock),
                 image: image?.trim() || 'https://via.placeholder.com/300x200?text=Product+Image',
+                specifications: specifications || {},
                 updatedAt: new Date()
             },
             { new: true }
@@ -465,7 +400,7 @@ app.put('/api/products/:id', adminAuth, async (req, res) => {
     }
 });
 
-// UPDATE: Add adminAuth to DELETE route
+// Delete product (Admin only)
 app.delete('/api/products/:id', adminAuth, async (req, res) => {
     try {
         const { id } = req.params;
@@ -488,4 +423,43 @@ app.delete('/api/products/:id', adminAuth, async (req, res) => {
         console.error('Delete product error:', error);
         res.status(500).json({ error: 'Failed to delete product' });
     }
+});
+
+// UTILITY ROUTES
+
+// Update stock (for order processing)
+app.patch('/api/products/:id/stock', async (req, res) => {
+  try {
+    const { quantity } = req.body;
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    product.stock = Math.max(0, product.stock + quantity);
+    product.updatedAt = new Date();
+    await product.save();
+
+    res.json({ stock: product.stock });
+  } catch (error) {
+    console.error('Update stock error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', service: 'product-service' });
+});
+
+// Initialize products on startup
+mongoose.connection.once('open', () => {
+  console.log('Connected to MongoDB');
+  initializeProducts();
+});
+
+app.listen(PORT, () => {
+  console.log(`Product Service running on port ${PORT}`);
+  console.log('🔒 Admin authentication enabled for create/update/delete operations');
 });
