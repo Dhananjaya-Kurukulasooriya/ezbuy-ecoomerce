@@ -1,5 +1,4 @@
-
-<!-- frontend/public/admin.html -->
+<!-- frontend/public/admin.html - COMPLETE REWRITE -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +6,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - EzBuy</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Admin-specific styles */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .admin-loading {
+            text-align: center;
+            padding: 50px;
+        }
+        
+        .admin-error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c66;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .admin-success {
+            background: #efe;
+            border: 1px solid #cfc;
+            color: #6c6;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .form-inline {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .form-inline input,
+        .form-inline select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn-small {
+            padding: 5px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn-edit {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .product-form {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .product-form h3 {
+            margin-top: 0;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-inline {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar">
@@ -26,28 +136,557 @@
         </div>
     </nav>
 
-    <main class="container">
+    <!-- Loading State -->
+    <div id="admin-loading" class="admin-loading">
+        <div class="loading-spinner"></div>
+        <p>Loading admin panel...</p>
+    </div>
+
+    <!-- Authentication Required -->
+    <div id="auth-required" style="display: none;" class="container">
+        <div style="text-align: center; margin-top: 100px;">
+            <h2>🔒 Admin Access Required</h2>
+            <p>Please login with administrator credentials to access this page.</p>
+            <a href="/login" class="btn-primary">Go to Login</a>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <main class="container" id="admin-panel" style="display: none;">
         <div class="admin-container">
-            <h1>Admin Panel</h1>
-            <div class="admin-tabs">
-                <button class="admin-tab active" onclick="showAdminTab('dashboard')">Dashboard</button>
-                <button class="admin-tab" onclick="showAdminTab('products')">Products</button>
-                <button class="admin-tab" onclick="showAdminTab('orders')">Orders</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h1>Admin Panel</h1>
+                <div>
+                    <span>Welcome, <strong id="admin-username"></strong></span>
+                    <button onclick="logout()" class="btn-secondary" style="margin-left: 10px;">Logout</button>
+                </div>
             </div>
+            
+            <div class="admin-tabs">
+                <button class="admin-tab active" onclick="showAdminTab('dashboard')" id="tab-dashboard">Dashboard</button>
+                <button class="admin-tab" onclick="showAdminTab('products')" id="tab-products">Products</button>
+                <button class="admin-tab" onclick="showAdminTab('orders')" id="tab-orders">Orders</button>
+            </div>
+            
             <div id="admin-content" class="admin-content">
-                <!-- Admin content will be loaded here -->
+                <!-- Content will be loaded here -->
             </div>
         </div>
     </main>
 
+    <!-- Notification System -->
+    <div id="notification-overlay" class="notification-overlay" style="display: none;">
+        <div class="notification-modal">
+            <div class="notification-header">
+                <h3 id="notification-title">Notification</h3>
+            </div>
+            <div class="notification-body">
+                <div id="notification-icon" class="notification-icon"></div>
+                <p id="notification-message">Message goes here</p>
+            </div>
+            <div class="notification-actions">
+                <button id="notification-cancel" class="btn-secondary" style="display: none;">Cancel</button>
+                <button id="notification-confirm" class="btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
     <script src="app.js"></script>
     <script>
+        // Admin-specific variables
+        let currentAdminTab = 'dashboard';
+        let products = [];
+        let orders = [];
+        let stats = {};
+
+        // Initialize admin page
         document.addEventListener('DOMContentLoaded', async () => {
-            await checkAuth();
-            if (currentUser?.role !== 'admin') {
-                alert('Admin access required');
-                window.location.href = '/';
+            console.log('🔧 Admin panel initializing...');
+            
+            try {
+                // Show loading
+                showElement('admin-loading');
+                hideElement('auth-required');
+                hideElement('admin-panel');
+                
+                // Check authentication
+                await checkAuth();
+                
+                if (!currentUser) {
+                    console.log('❌ No user logged in');
+                    showAuthRequired();
+                    return;
+                }
+                
+                if (currentUser.role !== 'admin') {
+                    console.log('❌ User is not admin:', currentUser.role);
+                    showAuthRequired();
+                    return;
+                }
+                
+                console.log('✅ Admin authenticated:', currentUser.username);
+                showAdminPanel();
+                
+            } catch (error) {
+                console.error('❌ Admin initialization error:', error);
+                showAuthRequired();
+            }
+        });
+
+        // Show auth required screen
+        function showAuthRequired() {
+            hideElement('admin-loading');
+            hideElement('admin-panel');
+            showElement('auth-required');
+        }
+
+        // Show admin panel
+        function showAdminPanel() {
+            hideElement('admin-loading');
+            hideElement('auth-required');
+            showElement('admin-panel');
+            
+            // Set admin username
+            document.getElementById('admin-username').textContent = currentUser.username || currentUser.email;
+            
+            // Load initial tab
+            showAdminTab('dashboard');
+        }
+
+        // Utility functions
+        function showElement(id) {
+            const element = document.getElementById(id);
+            if (element) element.style.display = 'block';
+        }
+
+        function hideElement(id) {
+            const element = document.getElementById(id);
+            if (element) element.style.display = 'none';
+        }
+
+        // Tab management
+        function showAdminTab(tabName) {
+            console.log(`🔄 Switching to ${tabName} tab`);
+            currentAdminTab = tabName;
+            
+            // Update tab buttons
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            // Load content
+            switch (tabName) {
+                case 'dashboard':
+                    loadDashboard();
+                    break;
+                case 'products':
+                    loadProducts();
+                    break;
+                case 'orders':
+                    loadOrders();
+                    break;
+            }
+        }
+
+        // Dashboard functions
+        async function loadDashboard() {
+            const content = document.getElementById('admin-content');
+            content.innerHTML = '<div class="admin-loading"><div class="loading-spinner"></div><p>Loading dashboard...</p></div>';
+            
+            try {
+                console.log('📊 Loading dashboard stats...');
+                const response = await apiCallWithRetry('/api/admin/orders/stats');
+                
+                if (!response || !response.ok) {
+                    throw new Error('Failed to load dashboard stats');
+                }
+                
+                stats = await response.json();
+                console.log('📊 Dashboard stats loaded:', stats);
+                
+                renderDashboard();
+                
+            } catch (error) {
+                console.error('❌ Dashboard loading error:', error);
+                content.innerHTML = `
+                    <div class="admin-error">
+                        <h3>Error Loading Dashboard</h3>
+                        <p>Unable to load dashboard statistics. Please check your connection and try again.</p>
+                        <button onclick="loadDashboard()" class="btn-primary">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderDashboard() {
+            const content = document.getElementById('admin-content');
+            content.innerHTML = `
+                <h2>📊 Dashboard Overview</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>${stats.totalOrders || 0}</h3>
+                        <p>Total Orders</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>$${(stats.totalRevenue || 0).toFixed(2)}</h3>
+                        <p>Total Revenue</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${getStatusCount('pending')}</h3>
+                        <p>Pending Orders</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${getStatusCount('delivered')}</h3>
+                        <p>Delivered Orders</p>
+                    </div>
+                </div>
+                
+                <h3>📈 Order Status Breakdown</h3>
+                <div class="stats-grid">
+                    ${(stats.statusStats || []).map(stat => `
+                        <div class="stat-card">
+                            <h3>${stat.count}</h3>
+                            <p>${stat._id.charAt(0).toUpperCase() + stat._id.slice(1)}</p>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <button onclick="showAdminTab('products')" class="btn-primary">Manage Products</button>
+                    <button onclick="showAdminTab('orders')" class="btn-secondary" style="margin-left: 10px;">Manage Orders</button>
+                </div>
+            `;
+        }
+
+        function getStatusCount(status) {
+            if (!stats.statusStats) return 0;
+            const statusStat = stats.statusStats.find(s => s._id === status);
+            return statusStat ? statusStat.count : 0;
+        }
+
+        // Products functions
+        async function loadProducts() {
+            const content = document.getElementById('admin-content');
+            content.innerHTML = '<div class="admin-loading"><div class="loading-spinner"></div><p>Loading products...</p></div>';
+            
+            try {
+                console.log('📦 Loading products...');
+                const response = await apiCallWithRetry('/api/products');
+                
+                if (!response || !response.ok) {
+                    throw new Error('Failed to load products');
+                }
+                
+                products = await response.json();
+                console.log('📦 Products loaded:', products.length);
+                
+                renderProducts();
+                
+            } catch (error) {
+                console.error('❌ Products loading error:', error);
+                content.innerHTML = `
+                    <div class="admin-error">
+                        <h3>Error Loading Products</h3>
+                        <p>Unable to load products. Please try again.</p>
+                        <button onclick="loadProducts()" class="btn-primary">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderProducts() {
+            const content = document.getElementById('admin-content');
+            content.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>📦 Products Management</h2>
+                    <button onclick="showAddProductForm()" class="btn-primary">+ Add New Product</button>
+                </div>
+                
+                <div id="product-form-container"></div>
+                
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Brand</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${products.map(product => `
+                                <tr>
+                                    <td><img src="${product.image}" alt="${product.name}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;"></td>
+                                    <td><strong>${product.name}</strong></td>
+                                    <td>${product.category}</td>
+                                    <td>${product.brand}</td>
+                                    <td>$${product.price}</td>
+                                    <td>${product.stock}</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button onclick="editProduct('${product._id}')" class="btn-small btn-edit">Edit</button>
+                                            <button onclick="deleteProduct('${product._id}')" class="btn-small btn-delete">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                ${products.length === 0 ? '<p style="text-align: center; margin-top: 30px;">No products found. Add your first product!</p>' : ''}
+            `;
+        }
+
+        function showAddProductForm() {
+            const container = document.getElementById('product-form-container');
+            container.innerHTML = `
+                <div class="product-form">
+                    <h3>➕ Add New Product</h3>
+                    <form onsubmit="submitProductForm(event)">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Product Name *</label>
+                                <input type="text" id="product-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Price *</label>
+                                <input type="number" id="product-price" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Category *</label>
+                                <input type="text" id="product-category" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Brand *</label>
+                                <input type="text" id="product-brand" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Stock Quantity *</label>
+                                <input type="number" id="product-stock" required min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Image URL</label>
+                                <input type="url" id="product-image" placeholder="https://example.com/image.jpg">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Description *</label>
+                            <textarea id="product-description" required rows="3"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn-primary">Add Product</button>
+                            <button type="button" onclick="hideProductForm()" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideProductForm() {
+            document.getElementById('product-form-container').innerHTML = '';
+        }
+
+        async function submitProductForm(event) {
+            event.preventDefault();
+            
+            const productData = {
+                name: document.getElementById('product-name').value.trim(),
+                description: document.getElementById('product-description').value.trim(),
+                price: parseFloat(document.getElementById('product-price').value),
+                category: document.getElementById('product-category').value.trim(),
+                brand: document.getElementById('product-brand').value.trim(),
+                stock: parseInt(document.getElementById('product-stock').value),
+                image: document.getElementById('product-image').value.trim() || 'https://via.placeholder.com/300x200?text=Product+Image'
+            };
+            
+            if (!productData.name || !productData.description || !productData.category || !productData.brand) {
+                await customAlert('Please fill in all required fields.', 'warning', '⚠️ Missing Information');
                 return;
             }
-            showAdminTab('dashboard');
-        });
+            
+            try {
+                console.log('💾 Adding product:', productData);
+                const response = await apiCallWithRetry('/api/products', {
+                    method: 'POST',
+                    body: JSON.stringify(productData)
+                });
+                
+                if (response && response.ok) {
+                    showToast('Product added successfully!', 'success');
+                    hideProductForm();
+                    loadProducts();
+                } else {
+                    const error = await response.json();
+                    await customAlert(error.error || 'Failed to add product', 'error', '❌ Error');
+                }
+            } catch (error) {
+                console.error('❌ Add product error:', error);
+                await customAlert('Network error. Please try again.', 'error', '❌ Error');
+            }
+        }
+
+        async function editProduct(productId) {
+            await customAlert('Edit functionality coming soon!', 'info', 'ℹ️ Info');
+        }
+
+        async function deleteProduct(productId) {
+            const product = products.find(p => p._id === productId);
+            if (!product) return;
+            
+            const confirmed = await customConfirm(
+                `Are you sure you want to delete "${product.name}"? This action cannot be undone.`,
+                'Delete Product',
+                'Yes, Delete',
+                'Cancel'
+            );
+            
+            if (!confirmed) return;
+            
+            try {
+                console.log('🗑️ Deleting product:', productId);
+                const response = await apiCallWithRetry(`/api/products/${productId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response && response.ok) {
+                    showToast('Product deleted successfully', 'success');
+                    loadProducts();
+                } else {
+                    const error = await response.json();
+                    await customAlert(error.error || 'Failed to delete product', 'error', '❌ Error');
+                }
+            } catch (error) {
+                console.error('❌ Delete product error:', error);
+                await customAlert('Network error. Please try again.', 'error', '❌ Error');
+            }
+        }
+
+        // Orders functions
+        async function loadOrders() {
+            const content = document.getElementById('admin-content');
+            content.innerHTML = '<div class="admin-loading"><div class="loading-spinner"></div><p>Loading orders...</p></div>';
+            
+            try {
+                console.log('📋 Loading orders...');
+                const response = await apiCallWithRetry('/api/admin/orders');
+                
+                if (!response || !response.ok) {
+                    throw new Error('Failed to load orders');
+                }
+                
+                const data = await response.json();
+                orders = data.orders || [];
+                console.log('📋 Orders loaded:', orders.length);
+                
+                renderOrders();
+                
+            } catch (error) {
+                console.error('❌ Orders loading error:', error);
+                content.innerHTML = `
+                    <div class="admin-error">
+                        <h3>Error Loading Orders</h3>
+                        <p>Unable to load orders. Please try again.</p>
+                        <button onclick="loadOrders()" class="btn-primary">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderOrders() {
+            const content = document.getElementById('admin-content');
+            content.innerHTML = `
+                <h2>📋 Orders Management</h2>
+                
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Date</th>
+                                <th>Items</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${orders.map(order => `
+                                <tr>
+                                    <td><strong>#${order._id.slice(-8)}</strong></td>
+                                    <td>${new Date(order.orderDate).toLocaleDateString()}</td>
+                                    <td>${order.items.length} item(s)</td>
+                                    <td><strong>$${order.totalAmount.toFixed(2)}</strong></td>
+                                    <td><span class="order-status ${order.status}">${order.status.toUpperCase()}</span></td>
+                                    <td>
+                                        <select onchange="updateOrderStatus('${order._id}', this.value)" style="padding: 5px;">
+                                            <option value="">Change Status</option>
+                                            <option value="confirmed">Confirmed</option>
+                                            <option value="processing">Processing</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                ${orders.length === 0 ? '<p style="text-align: center; margin-top: 30px;">No orders found.</p>' : ''}
+            `;
+        }
+
+        async function updateOrderStatus(orderId, newStatus) {
+            if (!newStatus) return;
+            
+            const order = orders.find(o => o._id === orderId);
+            if (!order) return;
+            
+            const confirmed = await customConfirm(
+                `Change order #${orderId.slice(-8)} status to "${newStatus.toUpperCase()}"?`,
+                'Update Order Status',
+                'Yes, Update',
+                'Cancel'
+            );
+            
+            if (!confirmed) {
+                // Reset select value
+                event.target.value = '';
+                return;
+            }
+            
+            try {
+                console.log('🔄 Updating order status:', orderId, newStatus);
+                const response = await apiCallWithRetry(`/api/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: newStatus })
+                });
+                
+                if (response && response.ok) {
+                    showToast('Order status updated successfully!', 'success');
+                    loadOrders();
+                } else {
+                    const error = await response.json();
+                    await customAlert(error.error || 'Failed to update order status', 'error', '❌ Error');
+                    event.target.value = '';
+                }
+            } catch (error) {
+                console.error('❌ Update order status error:', error);
+                await customAlert('Network error. Please try again.', 'error', '❌ Error');
+                event.target.value = '';
+            }
+        }
+    </script>
+</body>
+</html>
