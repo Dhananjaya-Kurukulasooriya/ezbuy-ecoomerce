@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const axios = require('axios');
 
+
 const app = express();
 const PORT = process.env.PORT || 3003;
 
@@ -72,6 +73,221 @@ const validateUser = async (req, res, next) => {
     return res.status(401).json({ error: 'Invalid token' });
   }
 };
+
+const adminAuth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({ 
+                error: 'Access denied. No token provided.',
+                code: 'NO_TOKEN'
+            });
+        }
+
+        // Validate token with user service
+        const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:3001';
+        
+        try {
+            const response = await axios.get(`${userServiceUrl}/api/auth/validate-token`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                timeout: 5000
+            });
+
+            if (!response.data.valid || !response.data.user.isAdmin) {
+                console.log(`🚨 Unauthorized order admin access:`, {
+                    valid: response.data.valid,
+                    isAdmin: response.data.user?.isAdmin,
+                    ip: req.ip,
+                    route: req.originalUrl,
+                    timestamp: new Date().toISOString()
+                });
+                
+                return res.status(403).json({ 
+                    error: 'Access denied. Admin privileges required.',
+                    code: 'INSUFFICIENT_PRIVILEGES'
+                });
+            }
+
+            req.user = response.data.user;
+            next();
+
+        } catch (userServiceError) {
+            console.error('User service validation failed:', userServiceError.message);
+            return res.status(401).json({ 
+                error: 'Token validation failed.',
+                code: 'VALIDATION_FAILED'
+            });
+        }
+
+    } catch (error) {
+        console.error('Order admin auth error:', error);
+        res.status(500).json({ 
+            error: 'Server error during authentication.',
+            code: 'SERVER_ERROR'
+        });
+    }
+};
+
+// ADD THESE NEW ADMIN ROUTES
+
+// Get all orders for admin dashboard
+app.get('/api/admin/orders', adminAuth, async (req, res) => {
+    try {
+        const orders = await Order.find()
+            .sort({ orderDate: -1 })
+            .limit(100); // Limit for performance
+
+        // If you need user details, you might need to call user-service
+        // for each order's userId, or include user info when creating orders
+
+        res.json({ orders });
+    } catch (error) {
+        console.error('Get admin orders error:', error);
+        res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+});
+
+// Get order statistics for admin dashboard
+app.get('/api/admin/orders/stats', adminAuth, async (req, res) => {
+    try {
+        // Total orders
+        const totalOrders = await Order.countDocuments();
+        
+        // Total revenue
+        const revenueResult = await Order.aggregate([
+            { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+        ]);
+        const totalRevenue = revenueResult[0]?.total || 0;
+
+        // Orders by status
+        const statusStats = await Order.aggregate([
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]);
+
+        // Recent orders (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const recentOrders = await Order.countDocuments({
+            orderDate: { $gte: thirtyDaysAgo }
+        });
+
+        res.json({
+            totalOrders,
+            totalRevenue,
+            statusStats,
+            recentOrders
+        });
+    } catch (error) {
+        console.error('Get order stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch order statistics' });
+    }
+});
+
+// Admin validation endpoint 
+app.post('/api/admin/validate-admin', adminAuth, async (req, res) => {
+    try {
+        res.json({
+            valid: true,
+            user: {
+                id: req.user.id,
+                username: req.user.username,
+                email: req.user.email,
+                role: req.user.role || 'admin'
+            }
+        });
+    } catch (error) {
+        console.error('Admin validation error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get detailed order information (admin only)
+app.get('/api/admin/orders/:orderId', adminAuth, async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        
+        const order = await Order.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        res.json(order);
+    } catch (error) {
+        console.error('Get order details error:', error);
+        res.status(500).json({ error: 'Failed to fetch order details' });
+    }
+});
+
+// UPDATE YOUR EXISTING ORDER STATUS ROUTE - Add adminAuth middleware
+app.patch('/api/orders/:id/status', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        // Validate status
+        const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+
+        const order = await Order.findByIdAndUpdate(
+            id,
+            { 
+                status, 
+                updatedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Log status change
+        console.log(`📋 Order status updated by admin:`, {
+            orderId: id,
+            newStatus: status,
+            adminId: req.user.id,
+            adminEmail: req.user.email,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json(order);
+    } catch (error) {
+        console.error('Update order status error:', error);
+        res.status(500).json({ error: 'Failed to update order status' });
+    }
+});
+
+// DELETE order (admin only, use with caution)
+app.delete('/api/admin/orders/:orderId', adminAuth, async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        
+        const order = await Order.findByIdAndDelete(orderId);
+        
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        console.log(`🗑️ Order deleted by admin:`, {
+            orderId,
+            adminId: req.user.id,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({ message: 'Order deleted successfully' });
+    } catch (error) {
+        console.error('Delete order error:', error);
+        res.status(500).json({ error: 'Failed to delete order' });
+    }
+});
+
 
 // Routes
 // Create order

@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,7 +45,70 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+// Admin Authentication Middleware (add this function)
+const adminAuth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({ 
+                error: 'Access denied. No token provided.',
+                code: 'NO_TOKEN'
+            });
+        }
 
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.userId).select('-password');
+        
+        if (!user) {
+            return res.status(401).json({ 
+                error: 'Invalid token. User not found.',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        if (user.role !== 'admin') {
+            console.log(`🚨 Unauthorized admin access attempt:`, {
+                userId: user._id,
+                email: user.email,
+                role: user.role,
+                ip: req.ip,
+                route: req.originalUrl,
+                timestamp: new Date().toISOString()
+            });
+            
+            return res.status(403).json({ 
+                error: 'Access denied. Admin privileges required.',
+                code: 'INSUFFICIENT_PRIVILEGES'
+            });
+        }
+
+        req.user = user;
+        next();
+
+    } catch (error) {
+        console.error('Admin auth error:', error);
+        
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ 
+                error: 'Invalid token.',
+                code: 'INVALID_TOKEN'
+            });
+        }
+        
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ 
+                error: 'Token expired.',
+                code: 'TOKEN_EXPIRED'
+            });
+        }
+
+        res.status(500).json({ 
+            error: 'Server error during authentication.',
+            code: 'SERVER_ERROR'
+        });
+    }
+};
 // Routes
 // Register
 app.post('/api/auth/register', async (req, res) => {
@@ -80,6 +144,54 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+app.post('/api/auth/validate-admin', adminAuth, async (req, res) => {
+    try {
+        res.json({
+            valid: true,
+            user: {
+                id: req.user._id,
+                username: req.user.username,
+                email: req.user.email,
+                role: req.user.role
+            }
+        });
+    } catch (error) {
+        console.error('Admin validation error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Token validation endpoint for other services (add this route)
+app.get('/api/auth/validate-token', async (req, res) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({ valid: false });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.userId).select('-password');
+        
+        if (!user) {
+            return res.status(401).json({ valid: false });
+        }
+
+        res.json({
+            valid: true,
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                isAdmin: user.role === 'admin'
+            }
+        });
+    } catch (error) {
+        res.status(401).json({ valid: false });
+    }
 });
 
 // Login

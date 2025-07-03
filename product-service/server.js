@@ -2,6 +2,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -173,6 +174,64 @@ const initializeProducts = async () => {
   }
 };
 
+const adminAuth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        
+        if (!token) {
+            return res.status(401).json({ 
+                error: 'Access denied. No token provided.',
+                code: 'NO_TOKEN'
+            });
+        }
+
+        // Validate token with user service
+        const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:3001';
+        
+        try {
+            const response = await axios.get(`${userServiceUrl}/api/auth/validate-token`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                timeout: 5000
+            });
+
+            if (!response.data.valid || !response.data.user.isAdmin) {
+                console.log(`🚨 Unauthorized product admin access:`, {
+                    valid: response.data.valid,
+                    isAdmin: response.data.user?.isAdmin,
+                    ip: req.ip,
+                    route: req.originalUrl,
+                    timestamp: new Date().toISOString()
+                });
+                
+                return res.status(403).json({ 
+                    error: 'Access denied. Admin privileges required.',
+                    code: 'INSUFFICIENT_PRIVILEGES'
+                });
+            }
+
+            req.user = response.data.user;
+            next();
+
+        } catch (userServiceError) {
+            console.error('User service validation failed:', userServiceError.message);
+            return res.status(401).json({ 
+                error: 'Token validation failed.',
+                code: 'VALIDATION_FAILED'
+            });
+        }
+
+    } catch (error) {
+        console.error('Product admin auth error:', error);
+        res.status(500).json({ 
+            error: 'Server error during authentication.',
+            code: 'SERVER_ERROR'
+        });
+    }
+};
+
+
 // Routes
 // Get all products
 app.get('/api/products', async (req, res) => {
@@ -308,3 +367,125 @@ app.listen(PORT, () => {
   console.log(`Product Service running on port ${PORT}`);
 });
 
+
+
+app.post('/api/products', adminAuth, async (req, res) => {
+    try {
+        const { name, description, price, category, brand, stock, image } = req.body;
+
+        // Enhanced validation
+        if (!name || !description || !category || !brand) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        if (price <= 0) {
+            return res.status(400).json({ error: 'Price must be greater than 0' });
+        }
+
+        if (stock < 0) {
+            return res.status(400).json({ error: 'Stock cannot be negative' });
+        }
+
+        // Your existing product creation logic here
+        const product = new Product({
+            name: name.trim(),
+            description: description.trim(),
+            price: parseFloat(price),
+            category: category.trim(),
+            brand: brand.trim(),
+            stock: parseInt(stock),
+            image: image?.trim() || 'https://via.placeholder.com/300x200?text=Product+Image'
+        });
+
+        await product.save();
+
+        console.log(`📦 Product created by admin:`, {
+            productId: product._id,
+            name: product.name,
+            adminId: req.user.id,
+            timestamp: new Date().toISOString()
+        });
+
+        res.status(201).json(product);
+    } catch (error) {
+        console.error('Create product error:', error);
+        res.status(500).json({ error: 'Failed to create product' });
+    }
+});
+
+// UPDATE: Add adminAuth to UPDATE route
+app.put('/api/products/:id', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, price, category, brand, stock, image } = req.body;
+
+        // Enhanced validation
+        if (!name || !description || !category || !brand) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        if (price <= 0) {
+            return res.status(400).json({ error: 'Price must be greater than 0' });
+        }
+
+        if (stock < 0) {
+            return res.status(400).json({ error: 'Stock cannot be negative' });
+        }
+
+        const product = await Product.findByIdAndUpdate(
+            id,
+            {
+                name: name.trim(),
+                description: description.trim(),
+                price: parseFloat(price),
+                category: category.trim(),
+                brand: brand.trim(),
+                stock: parseInt(stock),
+                image: image?.trim() || 'https://via.placeholder.com/300x200?text=Product+Image',
+                updatedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        console.log(`📦 Product updated by admin:`, {
+            productId: id,
+            name: product.name,
+            adminId: req.user.id,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json(product);
+    } catch (error) {
+        console.error('Update product error:', error);
+        res.status(500).json({ error: 'Failed to update product' });
+    }
+});
+
+// UPDATE: Add adminAuth to DELETE route
+app.delete('/api/products/:id', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const product = await Product.findByIdAndDelete(id);
+
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        console.log(`🗑️ Product deleted by admin:`, {
+            productId: id,
+            name: product.name,
+            adminId: req.user.id,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({ message: 'Product deleted successfully' });
+    } catch (error) {
+        console.error('Delete product error:', error);
+        res.status(500).json({ error: 'Failed to delete product' });
+    }
+});
