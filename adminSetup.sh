@@ -1,5 +1,5 @@
 # Create the admin setup script
-cat > admin-setup.sh << 'EOF'
+
 #!/bin/bash
 echo "🔧 EzBuy Admin Setup Script"
 echo "================================"
