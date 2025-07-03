@@ -1,4 +1,5 @@
-// frontend/public/app.js - COMPLETE FIXED VERSION
+// frontend/public/app.js - COMPLETE CLEAN VERSION
+
 const API_BASE = '';
 let currentUser = null;
 let cart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -332,7 +333,7 @@ async function loadCartItems() {
                     <img src="${product.image || 'https://via.placeholder.com/80x80'}" alt="${product.name}">
                     <div class="cart-item-details">
                         <h4>${product.name}</h4>
-                        <p class="cart-item-price">$${product.price}</p>
+                        <p class="cart-item-price">${product.price}</p>
                         <div class="quantity-controls">
                             <button onclick="updateCartQuantity('${product._id}', ${item.quantity - 1})">-</button>
                             <input type="number" value="${item.quantity}" 
@@ -340,7 +341,7 @@ async function loadCartItems() {
                                    min="1" max="${product.stock}">
                             <button onclick="updateCartQuantity('${product._id}', ${item.quantity + 1})">+</button>
                         </div>
-                        <p>Subtotal: $${itemTotal.toFixed(2)}</p>
+                        <p>Subtotal: ${itemTotal.toFixed(2)}</p>
                     </div>
                     <button onclick="removeFromCart('${product._id}')" class="btn-danger">Remove</button>
                 </div>
@@ -353,7 +354,7 @@ async function loadCartItems() {
     cartContainer.innerHTML = cartHTML.join('');
     if (cartSummary) {
         cartSummary.innerHTML = `
-            <div class="cart-total">Total: $${total.toFixed(2)}</div>
+            <div class="cart-total">Total: ${total.toFixed(2)}</div>
             <button onclick="proceedToCheckout()" class="btn-primary" style="width: 100%;">
                 Proceed to Checkout
             </button>
@@ -361,6 +362,7 @@ async function loadCartItems() {
     }
 }
 
+// New checkout functions
 function proceedToCheckout() {
     if (!currentUser) {
         alert('Please login to checkout');
@@ -368,49 +370,156 @@ function proceedToCheckout() {
         return;
     }
     
-    const address = prompt('Enter shipping address:');
-    if (!address) return;
+    if (cart.length === 0) {
+        alert('Your cart is empty');
+        return;
+    }
     
-    const paymentMethod = prompt('Enter payment method (credit_card, debit_card, paypal, cash_on_delivery):');
-    if (!paymentMethod) return;
-    
-    checkout(address, paymentMethod);
+    showCheckoutModal();
 }
 
-async function checkout(address, paymentMethod) {
+function showCheckoutModal() {
+    // Pre-fill user email if available
+    if (currentUser && currentUser.email) {
+        const emailField = document.getElementById('email');
+        if (emailField) emailField.value = currentUser.email;
+    }
+    
+    // Load order summary
+    loadCheckoutSummary();
+    
+    // Show modal
+    const modal = document.getElementById('checkout-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeCheckoutModal() {
+    const modal = document.getElementById('checkout-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+}
+
+async function loadCheckoutSummary() {
+    let subtotal = 0;
+    const summaryContainer = document.getElementById('checkout-order-summary');
+    if (!summaryContainer) return;
+    
+    const summaryHTML = [];
+    
+    for (const item of cart) {
+        try {
+            const response = await apiCallWithRetry(`/api/products/${item.productId}`);
+            if (!response || !response.ok) continue;
+            
+            const product = await response.json();
+            const itemTotal = product.price * item.quantity;
+            subtotal += itemTotal;
+            
+            summaryHTML.push(`
+                <div class="order-summary-item">
+                    <div>
+                        <strong>${product.name}</strong><br>
+                        <small>Qty: ${item.quantity} × ${product.price}</small>
+                    </div>
+                    <div><strong>${itemTotal.toFixed(2)}</strong></div>
+                </div>
+            `);
+        } catch (error) {
+            console.error('Error loading checkout item:', error);
+        }
+    }
+    
+    summaryContainer.innerHTML = summaryHTML.join('');
+    
+    // Calculate totals
+    const shipping = subtotal > 100 ? 0 : 9.99;
+    const tax = subtotal * 0.08;
+    const total = subtotal + shipping + tax;
+    
+    const subtotalEl = document.getElementById('checkout-subtotal');
+    const shippingEl = document.getElementById('checkout-shipping');
+    const taxEl = document.getElementById('checkout-tax');
+    const totalEl = document.getElementById('checkout-total');
+    
+    if (subtotalEl) subtotalEl.textContent = `${subtotal.toFixed(2)}`;
+    if (shippingEl) shippingEl.textContent = shipping === 0 ? 'FREE' : `${shipping.toFixed(2)}`;
+    if (taxEl) taxEl.textContent = `${tax.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `${total.toFixed(2)}`;
+}
+
+async function processCheckout() {
     try {
+        // Collect form data
+        const formData = {
+            firstName: document.getElementById('first-name')?.value || '',
+            lastName: document.getElementById('last-name')?.value || '',
+            email: document.getElementById('email')?.value || '',
+            phone: document.getElementById('phone')?.value || '',
+            address: document.getElementById('address')?.value || '',
+            city: document.getElementById('city')?.value || '',
+            state: document.getElementById('state')?.value || '',
+            zip: document.getElementById('zip')?.value || '',
+            country: document.getElementById('country')?.value || '',
+            paymentMethod: document.querySelector('input[name="payment-method"]:checked')?.value || 'credit_card'
+        };
+        
+        // Validate required fields
+        const requiredFields = ['firstName', 'lastName', 'email', 'address', 'city', 'state', 'zip', 'country'];
+        for (const field of requiredFields) {
+            if (!formData[field]) {
+                alert(`Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+                return;
+            }
+        }
+        
+        // Prepare order items
         const orderItems = cart.map(item => ({
             productId: item.productId,
             quantity: item.quantity
         }));
         
+        // Submit order
         const response = await apiCallWithRetry('/api/orders', {
             method: 'POST',
             body: JSON.stringify({
                 items: orderItems,
                 shippingAddress: {
-                    street: address,
-                    city: 'Default City',
-                    state: 'Default State',
-                    zipCode: '12345',
-                    country: 'Default Country'
+                    street: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    zipCode: formData.zip,
+                    country: formData.country
                 },
-                paymentMethod
+                paymentMethod: formData.paymentMethod
             })
         });
         
         if (response && response.ok) {
+            // Clear cart
             cart = [];
             localStorage.setItem('cart', JSON.stringify(cart));
             updateCartCount();
-            alert('Order placed successfully!');
+            
+            // Close modal
+            closeCheckoutModal();
+            
+            // Show success message
+            alert('🎉 Order placed successfully! You will receive a confirmation email shortly.');
+            
+            // Redirect to orders page
             window.location.href = '/orders';
         } else {
             const error = await response.json();
-            alert(error.error || 'Error placing order');
+            alert(error.error || 'Error placing order. Please try again.');
         }
     } catch (error) {
-        alert('Error placing order: ' + error.message);
+        console.error('Checkout error:', error);
+        alert('Error processing checkout. Please try again.');
     }
 }
 
@@ -446,7 +555,7 @@ async function loadOrders() {
                     </div>
                     <div>
                         <span class="order-status ${order.status}">${order.status.toUpperCase()}</span>
-                        <p><strong>Total: $${order.totalAmount}</strong></p>
+                        <p><strong>Total: ${order.totalAmount}</strong></p>
                     </div>
                 </div>
                 <div class="order-items">
@@ -456,7 +565,7 @@ async function loadOrders() {
                             <div>
                                 <h4>${item.name}</h4>
                                 <p>Quantity: ${item.quantity}</p>
-                                <p>Price: $${item.price}</p>
+                                <p>Price: ${item.price}</p>
                             </div>
                         </div>
                     `).join('')}
@@ -543,7 +652,7 @@ async function loadAdminDashboard() {
                         <p>Total Orders</p>
                     </div>
                     <div class="stat-card">
-                        <h3>$${stats.totalRevenue}</h3>
+                        <h3>${stats.totalRevenue}</h3>
                         <p>Total Revenue</p>
                     </div>
                     <div class="stat-card">
@@ -593,7 +702,7 @@ async function loadAdminProducts() {
                         <div class="product-card">
                             <img src="${product.image || 'https://via.placeholder.com/300x200'}" alt="${product.name}">
                             <h3>${product.name}</h3>
-                            <p class="price">$${product.price}</p>
+                            <p class="price">${product.price}</p>
                             <p class="stock">Stock: ${product.stock}</p>
                             <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
                                 <button onclick="editProduct('${product._id}')" class="btn-secondary">Edit</button>
@@ -743,7 +852,7 @@ async function loadAdminOrders() {
                             <tr>
                                 <td>#${order._id.substr(-8)}</td>
                                 <td>${new Date(order.orderDate).toLocaleDateString()}</td>
-                                <td>$${order.totalAmount}</td>
+                                <td>${order.totalAmount}</td>
                                 <td><span class="order-status ${order.status}">${order.status.toUpperCase()}</span></td>
                                 <td>
                                     <select onchange="updateOrderStatus('${order._id}', this.value)">
@@ -799,7 +908,71 @@ function debounce(func, wait) {
     };
 }
 
-// Initialize cart count on page load
+// Event listeners for checkout modal
 document.addEventListener('DOMContentLoaded', () => {
     updateCartCount();
+    
+    // Payment method toggle
+    document.addEventListener('change', (e) => {
+        if (e.target.name === 'payment-method') {
+            const cardDetails = document.getElementById('card-details');
+            if (cardDetails) {
+                const isCard = e.target.value === 'credit_card' || e.target.value === 'debit_card';
+                cardDetails.style.display = isCard ? 'block' : 'none';
+            }
+        }
+    });
+    
+    // Card number formatting
+    document.addEventListener('input', (e) => {
+        if (e.target.id === 'card-number') {
+            let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+            let matches = value.match(/\d{4,16}/g);
+            let match = matches && matches[0] || '';
+            let parts = [];
+            for (let i = 0, len = match.length; i < len; i += 4) {
+                parts.push(match.substring(i, i + 4));
+            }
+            if (parts.length) {
+                e.target.value = parts.join(' ');
+            } else {
+                e.target.value = value;
+            }
+        }
+        
+        if (e.target.id === 'expiry') {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2, 4);
+            }
+            e.target.value = value;
+        }
+        
+        if (e.target.id === 'cvv') {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        }
+    });
+    
+    // Checkout form submission
+    document.addEventListener('submit', (e) => {
+        if (e.target.id === 'checkout-form') {
+            e.preventDefault();
+            processCheckout();
+        }
+    });
+    
+    // Close modal when clicking outside
+    document.addEventListener('click', (e) => {
+        const modal = document.getElementById('checkout-modal');
+        if (e.target === modal) {
+            closeCheckoutModal();
+        }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeCheckoutModal();
+        }
+    });
 });

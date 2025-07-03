@@ -44,6 +44,159 @@
             await loadCartItems();
         });
     </script>
+
+<!-- Checkout Modal -->
+<div id="checkout-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Checkout</h2>
+            <span class="close" onclick="closeCheckoutModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="checkout-form">
+                <div class="checkout-sections">
+                    <!-- Shipping Information -->
+                    <div class="checkout-section">
+                        <h3>Shipping Information</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="first-name">First Name *</label>
+                                <input type="text" id="first-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="last-name">Last Name *</label>
+                                <input type="text" id="last-name" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email *</label>
+                            <input type="email" id="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number</label>
+                            <input type="tel" id="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="address">Street Address *</label>
+                            <input type="text" id="address" placeholder="123 Main Street" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="city">City *</label>
+                                <input type="text" id="city" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="state">State/Province *</label>
+                                <input type="text" id="state" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="zip">ZIP/Postal Code *</label>
+                                <input type="text" id="zip" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="country">Country *</label>
+                                <select id="country" required>
+                                    <option value="">Select Country</option>
+                                    <option value="US">United States</option>
+                                    <option value="CA">Canada</option>
+                                    <option value="UK">United Kingdom</option>
+                                    <option value="AU">Australia</option>
+                                    <option value="DE">Germany</option>
+                                    <option value="FR">France</option>
+                                    <option value="LK">Sri Lanka</option>
+                                    <option value="IN">India</option>
+                                    <option value="SG">Singapore</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Information -->
+                    <div class="checkout-section">
+                        <h3>Payment Method</h3>
+                        <div class="payment-methods">
+                            <div class="payment-option">
+                                <input type="radio" id="credit-card" name="payment-method" value="credit_card" checked>
+                                <label for="credit-card">💳 Credit Card</label>
+                            </div>
+                            <div class="payment-option">
+                                <input type="radio" id="debit-card" name="payment-method" value="debit_card">
+                                <label for="debit-card">💳 Debit Card</label>
+                            </div>
+                            <div class="payment-option">
+                                <input type="radio" id="paypal" name="payment-method" value="paypal">
+                                <label for="paypal">🅿️ PayPal</label>
+                            </div>
+                            <div class="payment-option">
+                                <input type="radio" id="cash-on-delivery" name="payment-method" value="cash_on_delivery">
+                                <label for="cash-on-delivery">💵 Cash on Delivery</label>
+                            </div>
+                        </div>
+
+                        <!-- Credit/Debit Card Fields -->
+                        <div id="card-details" class="card-details">
+                            <div class="form-group">
+                                <label for="card-number">Card Number</label>
+                                <input type="text" id="card-number" placeholder="1234 5678 9012 3456" maxlength="19">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="expiry">Expiry Date</label>
+                                    <input type="text" id="expiry" placeholder="MM/YY" maxlength="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cvv">CVV</label>
+                                    <input type="text" id="cvv" placeholder="123" maxlength="4">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="card-name">Name on Card</label>
+                                <input type="text" id="card-name" placeholder="John Doe">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Summary -->
+                    <div class="checkout-section">
+                        <h3>Order Summary</h3>
+                        <div id="checkout-order-summary">
+                            <!-- Order items will be inserted here -->
+                        </div>
+                        <div class="order-total">
+                            <div class="total-row">
+                                <span>Subtotal:</span>
+                                <span id="checkout-subtotal">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span>Shipping:</span>
+                                <span id="checkout-shipping">$9.99</span>
+                            </div>
+                            <div class="total-row">
+                                <span>Tax:</span>
+                                <span id="checkout-tax">$0.00</span>
+                            </div>
+                            <div class="total-row total-final">
+                                <span>Total:</span>
+                                <span id="checkout-total">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="closeCheckoutModal()" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Place Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+
+
 </body>
 </html>
 
