@@ -50,6 +50,7 @@ const initializeProducts = async () => {
           category: "Television",
           brand: "Samsung",
           stock: 15,
+          image: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&h=300&fit=crop&auto=format",
           specifications: {
             voltage: "110-240V",
             power: "150W",
@@ -64,6 +65,7 @@ const initializeProducts = async () => {
           category: "Smartphone",
           brand: "Apple",
           stock: 25,
+          image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=300&fit=crop&auto=format",
           specifications: {
             voltage: "5V",
             power: "20W",
@@ -78,6 +80,7 @@ const initializeProducts = async () => {
           category: "Laptop",
           brand: "Dell",
           stock: 10,
+          image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop&auto=format",
           specifications: {
             voltage: "19.5V",
             power: "65W",
@@ -92,6 +95,7 @@ const initializeProducts = async () => {
           category: "Audio",
           brand: "Sony",
           stock: 30,
+          image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop&auto=format",
           specifications: {
             voltage: "5V",
             power: "1.5W",
@@ -106,17 +110,63 @@ const initializeProducts = async () => {
           category: "Monitor",
           brand: "LG",
           stock: 20,
+          image: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400&h=300&fit=crop&auto=format",
           specifications: {
             voltage: "110-240V",
             power: "40W",
             warranty: "3 years",
             color: "Black"
           }
+        },
+        {
+          name: "MacBook Pro 16-inch",
+          description: "Powerful laptop with M3 Pro chip for professionals",
+          price: 2499.99,
+          category: "Laptop",
+          brand: "Apple",
+          stock: 8,
+          image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&h=300&fit=crop&auto=format",
+          specifications: {
+            voltage: "20V",
+            power: "96W",
+            warranty: "1 year",
+            color: "Space Gray"
+          }
+        },
+        {
+          name: "PlayStation 5 Console",
+          description: "Next-gen gaming console with ultra-high-speed SSD",
+          price: 499.99,
+          category: "Gaming",
+          brand: "Sony",
+          stock: 12,
+          image: "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=400&h=300&fit=crop&auto=format",
+          specifications: {
+            voltage: "110-240V",
+            power: "200W",
+            warranty: "1 year",
+            color: "White"
+          }
+        },
+        {
+          name: "AirPods Pro 2nd Gen",
+          description: "Active noise cancellation with spatial audio",
+          price: 249.99,
+          category: "Audio",
+          brand: "Apple",
+          stock: 40,
+          image: "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=400&h=300&fit=crop&auto=format",
+          specifications: {
+            voltage: "5V",
+            power: "0.5W",
+            warranty: "1 year",
+            color: "White"
+          }
         }
       ];
 
       await Product.insertMany(sampleProducts);
-      console.log('Sample products inserted');
+      console.log('Sample products with real images inserted');
     }
   } catch (error) {
     console.error('Error initializing products:', error);
