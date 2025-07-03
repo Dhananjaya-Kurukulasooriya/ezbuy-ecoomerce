@@ -1,8 +1,215 @@
-// frontend/public/app.js - COMPLETE CLEAN VERSION
+// frontend/public/app.js - WITH PROFESSIONAL NOTIFICATIONS
 
 const API_BASE = '';
 let currentUser = null;
 let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+
+// Professional Notification System
+function showNotification(options) {
+    const {
+        title = 'Notification',
+        message = '',
+        type = 'info',
+        showCancel = false,
+        confirmText = 'OK',
+        cancelText = 'Cancel',
+        onConfirm = null,
+        onCancel = null
+    } = options;
+
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('notification-overlay');
+        const titleEl = document.getElementById('notification-title');
+        const iconEl = document.getElementById('notification-icon');
+        const messageEl = document.getElementById('notification-message');
+        const confirmBtn = document.getElementById('notification-confirm');
+        const cancelBtn = document.getElementById('notification-cancel');
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        confirmBtn.textContent = confirmText;
+        cancelBtn.textContent = cancelText;
+
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ',
+            question: '?'
+        };
+
+        iconEl.textContent = icons[type] || icons.info;
+        iconEl.className = `notification-icon ${type}`;
+        cancelBtn.style.display = showCancel ? 'inline-block' : 'none';
+
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+
+        const handleConfirm = () => {
+            hideNotification();
+            if (onConfirm) onConfirm();
+            resolve(true);
+        };
+
+        const handleCancel = () => {
+            hideNotification();
+            if (onCancel) onCancel();
+            resolve(false);
+        };
+
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+        document.getElementById('notification-confirm').addEventListener('click', handleConfirm);
+        document.getElementById('notification-cancel').addEventListener('click', handleCancel);
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) handleCancel();
+        });
+
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+    });
+}
+
+function hideNotification() {
+    const overlay = document.getElementById('notification-overlay');
+    overlay.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function showToast(message, type = 'success', duration = 4000) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type] || icons.info}</div>
+        <div class="toast-message">${message}</div>
+        <button class="toast-close">&times;</button>
+    `;
+
+    container.appendChild(toast);
+
+    const closeBtn = toast.querySelector('.toast-close');
+    closeBtn.addEventListener('click', () => removeToast(toast));
+
+    setTimeout(() => removeToast(toast), duration);
+}
+
+function removeToast(toast) {
+    if (toast && toast.parentNode) {
+        toast.style.animation = 'toastSlideOut 0.3s ease-out forwards';
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 300);
+    }
+}
+
+function customAlert(message, type = 'info', title = null) {
+    const titles = {
+        success: '✅ Success',
+        error: '❌ Error',
+        warning: '⚠️ Warning',
+        info: 'ℹ️ Information'
+    };
+
+    return showNotification({
+        title: title || titles[type] || 'Notification',
+        message: message,
+        type: type,
+        showCancel: false,
+        confirmText: 'OK'
+    });
+}
+
+function customConfirm(message, title = 'Confirm Action', confirmText = 'Yes', cancelText = 'No') {
+    return showNotification({
+        title: title,
+        message: message,
+        type: 'question',
+        showCancel: true,
+        confirmText: confirmText,
+        cancelText: cancelText
+    });
+}
+
+function customPrompt(message, title = 'Input Required', defaultValue = '') {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('notification-overlay');
+        const modal = overlay.querySelector('.notification-modal');
+        
+        modal.innerHTML = `
+            <div class="notification-header">
+                <h3>${title}</h3>
+            </div>
+            <div class="notification-body">
+                <div class="notification-icon question">?</div>
+                <div style="flex: 1;">
+                    <p style="margin: 0 0 15px 0;">${message}</p>
+                    <input type="text" id="prompt-input" value="${defaultValue}" 
+                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;">
+                </div>
+            </div>
+            <div class="notification-actions">
+                <button id="prompt-cancel" class="btn-secondary">Cancel</button>
+                <button id="prompt-confirm" class="btn-primary">OK</button>
+            </div>
+        `;
+
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+
+        const input = document.getElementById('prompt-input');
+        const confirmBtn = document.getElementById('prompt-confirm');
+        const cancelBtn = document.getElementById('prompt-cancel');
+
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 100);
+
+        const handleConfirm = () => {
+            const value = input.value.trim();
+            hideNotification();
+            resolve(value || null);
+        };
+
+        const handleCancel = () => {
+            hideNotification();
+            resolve(null);
+        };
+
+        confirmBtn.addEventListener('click', handleConfirm);
+        cancelBtn.addEventListener('click', handleCancel);
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleConfirm();
+            } else if (e.key === 'Escape') {
+                handleCancel();
+            }
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) handleCancel();
+        });
+    });
+}
 
 // Add retry mechanism for API calls
 async function apiCallWithRetry(url, options = {}, retries = 3) {
@@ -53,7 +260,10 @@ async function login(email, password) {
         localStorage.setItem('user', JSON.stringify(data.user));
         currentUser = data.user;
         
-        window.location.href = '/';
+        showToast('Login successful! Welcome back.', 'success');
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 1000);
     } catch (error) {
         throw error;
     }
@@ -70,7 +280,11 @@ async function register(username, email, password) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         
-        alert('Registration successful! Please login.');
+        await customAlert(
+            'Registration successful! You can now login with your credentials.',
+            'success',
+            '🎉 Welcome to EzBuy!'
+        );
         window.location.reload();
     } catch (error) {
         throw error;
@@ -83,7 +297,10 @@ function logout() {
     localStorage.removeItem('cart');
     currentUser = null;
     cart = [];
-    window.location.href = '/';
+    showToast('Logged out successfully', 'info');
+    setTimeout(() => {
+        window.location.href = '/';
+    }, 1000);
 }
 
 async function checkAuth() {
@@ -116,10 +333,17 @@ function updateNavigation() {
 }
 
 // Cart functions
-function addToCart(productId) {
+async function addToCart(productId) {
     if (!currentUser) {
-        alert('Please login to add items to cart');
-        window.location.href = '/login';
+        const shouldLogin = await customConfirm(
+            'You need to be logged in to add items to cart. Would you like to login now?',
+            'Login Required',
+            'Login',
+            'Cancel'
+        );
+        if (shouldLogin) {
+            window.location.href = '/login';
+        }
         return;
     }
     
@@ -132,7 +356,7 @@ function addToCart(productId) {
     
     localStorage.setItem('cart', JSON.stringify(cart));
     updateCartCount();
-    alert('Item added to cart!');
+    showToast('Item added to cart!', 'success');
 }
 
 function updateCartCount() {
@@ -143,12 +367,22 @@ function updateCartCount() {
     }
 }
 
-function removeFromCart(productId) {
-    cart = cart.filter(item => item.productId !== productId);
-    localStorage.setItem('cart', JSON.stringify(cart));
-    updateCartCount();
-    if (window.location.pathname === '/cart') {
-        loadCartItems();
+async function removeFromCart(productId) {
+    const shouldRemove = await customConfirm(
+        'Are you sure you want to remove this item from your cart?',
+        'Remove Item',
+        'Remove',
+        'Cancel'
+    );
+    
+    if (shouldRemove) {
+        cart = cart.filter(item => item.productId !== productId);
+        localStorage.setItem('cart', JSON.stringify(cart));
+        updateCartCount();
+        showToast('Item removed from cart', 'info');
+        if (window.location.pathname === '/cart') {
+            loadCartItems();
+        }
     }
 }
 
@@ -244,7 +478,7 @@ async function loadProducts() {
                     <h3>${product.name}</h3>
                     <p class="description">${product.description}</p>
                     <p class="brand">Brand: ${product.brand}</p>
-                    <p class="price">$${product.price}</p>
+                    <p class="price">${product.price}</p>
                     <p class="stock">Stock: ${product.stock}</p>
                     <button onclick="addToCart('${product._id}')" 
                             class="btn-secondary" 
@@ -363,15 +597,22 @@ async function loadCartItems() {
 }
 
 // New checkout functions
-function proceedToCheckout() {
+async function proceedToCheckout() {
     if (!currentUser) {
-        alert('Please login to checkout');
-        window.location.href = '/login';
+        const shouldLogin = await customConfirm(
+            'You need to be logged in to checkout. Would you like to login now?',
+            'Login Required',
+            'Login',
+            'Cancel'
+        );
+        if (shouldLogin) {
+            window.location.href = '/login';
+        }
         return;
     }
     
     if (cart.length === 0) {
-        alert('Your cart is empty');
+        await customAlert('Your cart is empty. Add some items before checkout.', 'warning', '🛒 Empty Cart');
         return;
     }
     
@@ -472,7 +713,11 @@ async function processCheckout() {
         const requiredFields = ['firstName', 'lastName', 'email', 'address', 'city', 'state', 'zip', 'country'];
         for (const field of requiredFields) {
             if (!formData[field]) {
-                alert(`Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+                await customAlert(
+                    `Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()} field.`,
+                    'warning',
+                    '⚠️ Missing Information'
+                );
                 return;
             }
         }
@@ -509,17 +754,29 @@ async function processCheckout() {
             closeCheckoutModal();
             
             // Show success message
-            alert('🎉 Order placed successfully! You will receive a confirmation email shortly.');
+            await customAlert(
+                'Your order has been placed successfully! You will receive a confirmation email shortly.',
+                'success',
+                '🎉 Order Placed!'
+            );
             
             // Redirect to orders page
             window.location.href = '/orders';
         } else {
             const error = await response.json();
-            alert(error.error || 'Error placing order. Please try again.');
+            await customAlert(
+                error.error || 'Failed to place order. Please try again.',
+                'error',
+                '❌ Order Failed'
+            );
         }
     } catch (error) {
         console.error('Checkout error:', error);
-        alert('Error processing checkout. Please try again.');
+        await customAlert(
+            'An error occurred while processing your order. Please try again.',
+            'error',
+            '❌ Checkout Error'
+        );
     }
 }
 
@@ -578,11 +835,23 @@ async function loadOrders() {
         `).join('');
     } catch (error) {
         console.error('Error loading orders:', error);
+        await customAlert(
+            'Failed to load your orders. Please try again.',
+            'error',
+            '❌ Loading Error'
+        );
     }
 }
 
 async function cancelOrder(orderId) {
-    if (!confirm('Are you sure you want to cancel this order?')) return;
+    const shouldCancel = await customConfirm(
+        'Are you sure you want to cancel this order? This action cannot be undone.',
+        'Cancel Order',
+        'Yes, Cancel',
+        'Keep Order'
+    );
+    
+    if (!shouldCancel) return;
     
     try {
         const response = await apiCallWithRetry(`/api/orders/${orderId}/cancel`, {
@@ -590,14 +859,22 @@ async function cancelOrder(orderId) {
         });
         
         if (response && response.ok) {
-            alert('Order cancelled successfully');
+            showToast('Order cancelled successfully', 'success');
             loadOrders();
         } else {
             const error = await response.json();
-            alert(error.error || 'Error cancelling order');
+            await customAlert(
+                error.error || 'Failed to cancel order.',
+                'error',
+                '❌ Cancellation Failed'
+            );
         }
     } catch (error) {
-        alert('Error cancelling order: ' + error.message);
+        await customAlert(
+            'An error occurred while cancelling the order.',
+            'error',
+            '❌ Error'
+        );
     }
 }
 
@@ -677,6 +954,11 @@ async function loadAdminDashboard() {
         }
     } catch (error) {
         console.error('Error loading admin dashboard:', error);
+        await customAlert(
+            'Failed to load dashboard statistics.',
+            'error',
+            '❌ Dashboard Error'
+        );
     }
 }
 
@@ -715,6 +997,11 @@ async function loadAdminProducts() {
         }
     } catch (error) {
         console.error('Error loading admin products:', error);
+        await customAlert(
+            'Failed to load products for management.',
+            'error',
+            '❌ Loading Error'
+        );
     }
 }
 
@@ -792,20 +1079,35 @@ async function submitProductForm(event) {
         });
         
         if (response && response.ok) {
-            alert('Product added successfully!');
+            showToast('Product added successfully!', 'success');
             hideProductForm();
             loadAdminProducts();
         } else {
             const error = await response.json();
-            alert(error.error || 'Error adding product');
+            await customAlert(
+                error.error || 'Failed to add product.',
+                'error',
+                '❌ Add Product Failed'
+            );
         }
     } catch (error) {
-        alert('Error adding product: ' + error.message);
+        await customAlert(
+            'An error occurred while adding the product.',
+            'error',
+            '❌ Error'
+        );
     }
 }
 
 async function deleteProduct(productId) {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+    const shouldDelete = await customConfirm(
+        'Are you sure you want to delete this product? This action cannot be undone.',
+        'Delete Product',
+        'Yes, Delete',
+        'Cancel'
+    );
+    
+    if (!shouldDelete) return;
     
     try {
         const response = await apiCallWithRetry(`/api/products/${productId}`, {
@@ -813,14 +1115,22 @@ async function deleteProduct(productId) {
         });
         
         if (response && response.ok) {
-            alert('Product deleted successfully!');
+            showToast('Product deleted successfully!', 'success');
             loadAdminProducts();
         } else {
             const error = await response.json();
-            alert(error.error || 'Error deleting product');
+            await customAlert(
+                error.error || 'Failed to delete product.',
+                'error',
+                '❌ Delete Failed'
+            );
         }
     } catch (error) {
-        alert('Error deleting product: ' + error.message);
+        await customAlert(
+            'An error occurred while deleting the product.',
+            'error',
+            '❌ Error'
+        );
     }
 }
 
@@ -872,11 +1182,25 @@ async function loadAdminOrders() {
         }
     } catch (error) {
         console.error('Error loading admin orders:', error);
+        await customAlert(
+            'Failed to load orders for management.',
+            'error',
+            '❌ Loading Error'
+        );
     }
 }
 
 async function updateOrderStatus(orderId, status) {
     if (!status) return;
+    
+    const shouldUpdate = await customConfirm(
+        `Are you sure you want to change this order status to "${status.toUpperCase()}"?`,
+        'Update Order Status',
+        'Yes, Update',
+        'Cancel'
+    );
+    
+    if (!shouldUpdate) return;
     
     try {
         const response = await apiCallWithRetry(`/api/orders/${orderId}/status`, {
@@ -885,14 +1209,22 @@ async function updateOrderStatus(orderId, status) {
         });
         
         if (response && response.ok) {
-            alert('Order status updated successfully!');
+            showToast('Order status updated successfully!', 'success');
             loadAdminOrders();
         } else {
             const error = await response.json();
-            alert(error.error || 'Error updating order status');
+            await customAlert(
+                error.error || 'Failed to update order status.',
+                'error',
+                '❌ Update Failed'
+            );
         }
     } catch (error) {
-        alert('Error updating order status: ' + error.message);
+        await customAlert(
+            'An error occurred while updating the order status.',
+            'error',
+            '❌ Error'
+        );
     }
 }
 
