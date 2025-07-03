@@ -106,7 +106,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx-letsencrypt.conf:/etc/nginx/nginx.conf
+      - ./nginx-with-ssl.conf:/etc/nginx/nginx.conf
       - ./ssl/certbot/conf:/etc/letsencrypt
       - ./ssl/certbot/www:/var/www/certbot
     depends_on:

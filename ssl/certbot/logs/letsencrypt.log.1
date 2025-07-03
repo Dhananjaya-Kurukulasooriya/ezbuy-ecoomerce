@@ -1,0 +1,73 @@
+2025-07-03 12:47:15,821:DEBUG:certbot._internal.main:certbot version: 4.1.1
+2025-07-03 12:47:15,825:DEBUG:certbot._internal.main:Location of certbot entry point: /usr/local/bin/certbot
+2025-07-03 12:47:15,825:DEBUG:certbot._internal.main:Arguments: []
+2025-07-03 12:47:15,826:DEBUG:certbot._internal.main:Discovered plugins: PluginsRegistry(PluginEntryPoint#manual,PluginEntryPoint#null,PluginEntryPoint#standalone,PluginEntryPoint#webroot)
+2025-07-03 12:47:15,883:DEBUG:certbot._internal.log:Root logging level set at 30
+2025-07-03 12:47:15,887:DEBUG:certbot._internal.display.obj:Notifying user: Processing /etc/letsencrypt/renewal/encodap.com.conf
+2025-07-03 12:47:15,889:DEBUG:certbot._internal.plugins.selection:Requested authenticator None and installer None
+2025-07-03 12:47:15,913:DEBUG:acme.client:Sending GET request to https://acme-v02.api.letsencrypt.org/directory.
+2025-07-03 12:47:15,919:DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): acme-v02.api.letsencrypt.org:443
+2025-07-03 12:47:16,511:DEBUG:urllib3.connectionpool:https://acme-v02.api.letsencrypt.org:443 "GET /directory HTTP/1.1" 200 1012
+2025-07-03 12:47:16,512:DEBUG:acme.client:Received response:
+HTTP 200
+Server: nginx
+Date: Thu, 03 Jul 2025 12:47:16 GMT
+Content-Type: application/json
+Content-Length: 1012
+Connection: keep-alive
+Cache-Control: public, max-age=0, no-cache
+X-Frame-Options: DENY
+Strict-Transport-Security: max-age=604800
+
+{
+  "jFBu7JPwZYE": "https://community.letsencrypt.org/t/adding-random-entries-to-the-directory/33417",
+  "keyChange": "https://acme-v02.api.letsencrypt.org/acme/key-change",
+  "meta": {
+    "caaIdentities": [
+      "letsencrypt.org"
+    ],
+    "profiles": {
+      "classic": "https://letsencrypt.org/docs/profiles#classic",
+      "shortlived": "https://letsencrypt.org/docs/profiles#shortlived (not yet generally available)",
+      "tlsserver": "https://letsencrypt.org/docs/profiles#tlsserver"
+    },
+    "termsOfService": "https://letsencrypt.org/documents/LE-SA-v1.5-February-24-2025.pdf",
+    "website": "https://letsencrypt.org"
+  },
+  "newAccount": "https://acme-v02.api.letsencrypt.org/acme/new-acct",
+  "newNonce": "https://acme-v02.api.letsencrypt.org/acme/new-nonce",
+  "newOrder": "https://acme-v02.api.letsencrypt.org/acme/new-order",
+  "renewalInfo": "https://acme-v02.api.letsencrypt.org/draft-ietf-acme-ari-03/renewalInfo",
+  "revokeCert": "https://acme-v02.api.letsencrypt.org/acme/revoke-cert"
+}
+2025-07-03 12:47:16,514:DEBUG:acme.client:Sending GET request to https://acme-v02.api.letsencrypt.org/draft-ietf-acme-ari-03/renewalInfo/nytfzzwhT50Et-0rLMTGcIvS1w0.BWM3eS-aah-e6VLKCMGtWuyo.
+2025-07-03 12:47:16,711:DEBUG:urllib3.connectionpool:https://acme-v02.api.letsencrypt.org:443 "GET /draft-ietf-acme-ari-03/renewalInfo/nytfzzwhT50Et-0rLMTGcIvS1w0.BWM3eS-aah-e6VLKCMGtWuyo HTTP/1.1" 200 101
+2025-07-03 12:47:16,714:DEBUG:acme.client:Received response:
+HTTP 200
+Server: nginx
+Date: Thu, 03 Jul 2025 12:47:16 GMT
+Content-Type: application/json
+Content-Length: 101
+Connection: keep-alive
+Cache-Control: public, max-age=0, no-cache
+Link: <https://acme-v02.api.letsencrypt.org/directory>;rel="index"
+Retry-After: 21600
+X-Frame-Options: DENY
+Strict-Transport-Security: max-age=604800
+
+{
+  "suggestedWindow": {
+    "start": "2025-08-31T14:20:56Z",
+    "end": "2025-09-02T09:31:46Z"
+  }
+}
+2025-07-03 12:47:16,731:INFO:certbot.ocsp:Cannot extract OCSP URI from /etc/letsencrypt/archive/encodap.com/cert1.pem
+2025-07-03 12:47:16,732:DEBUG:certbot._internal.display.obj:Notifying user: Certificate not yet due for renewal
+2025-07-03 12:47:16,737:DEBUG:certbot._internal.plugins.selection:Requested authenticator webroot and installer None
+2025-07-03 12:47:16,737:DEBUG:certbot._internal.display.obj:Notifying user: 
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+2025-07-03 12:47:16,737:DEBUG:certbot._internal.display.obj:Notifying user: The following certificates are not due for renewal yet:
+2025-07-03 12:47:16,737:DEBUG:certbot._internal.display.obj:Notifying user:   /etc/letsencrypt/live/encodap.com/fullchain.pem expires on 2025-10-01 (skipped)
+2025-07-03 12:47:16,739:DEBUG:certbot._internal.display.obj:Notifying user: No renewals were attempted.
+2025-07-03 12:47:16,739:DEBUG:certbot._internal.display.obj:Notifying user: - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+2025-07-03 12:47:16,740:DEBUG:certbot._internal.renewal:no renewal failures
