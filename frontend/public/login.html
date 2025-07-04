@@ -1,4 +1,3 @@
-
 <!--frontend/public/login.html-->
 <!DOCTYPE html>
 <html lang="en">
@@ -24,14 +23,22 @@
     <main class="auth-container">
         <div class="auth-form">
             <h2 id="form-title">Login</h2>
-            <form id="auth-form">
-                <div id="register-fields" style="display: none;">
-                    <input type="text" id="username" placeholder="Username" required>
-                </div>
-                <input type="email" id="email" placeholder="Email" required>
-                <input type="password" id="password" placeholder="Password" required>
-                <button type="submit" class="btn-primary">Login</button>
+            
+            <!-- Login Form (visible by default) -->
+            <form id="login-form" class="auth-form-container">
+                <input type="email" id="login-email" name="email" placeholder="Email" required>
+                <input type="password" id="login-password" name="password" placeholder="Password" required>
+                <button type="submit" class="btn-primary login-btn">Login</button>
             </form>
+            
+            <!-- Register Form (hidden by default) -->
+            <form id="register-form" class="auth-form-container" style="display: none;">
+                <input type="text" id="register-username" name="username" placeholder="Username" required>
+                <input type="email" id="register-email" name="email" placeholder="Email" required>
+                <input type="password" id="register-password" name="password" placeholder="Password" required>
+                <button type="submit" class="btn-primary register-btn">Register</button>
+            </form>
+            
             <p>
                 <span id="switch-text">Don't have an account?</span>
                 <a href="#" id="switch-mode">Register</a>
@@ -40,70 +47,161 @@
     </main>
 
     <!-- Notification System -->
-<div id="notification-overlay" class="notification-overlay" style="display: none;">
-    <div class="notification-modal">
-        <div class="notification-header">
-            <h3 id="notification-title">Notification</h3>
-        </div>
-        <div class="notification-body">
-            <div id="notification-icon" class="notification-icon"></div>
-            <p id="notification-message">Message goes here</p>
-        </div>
-        <div class="notification-actions">
-            <button id="notification-cancel" class="btn-secondary" style="display: none;">Cancel</button>
-            <button id="notification-confirm" class="btn-primary">OK</button>
+    <div id="notification-overlay" class="notification-overlay" style="display: none;">
+        <div class="notification-modal">
+            <div class="notification-header">
+                <h3 id="notification-title">Notification</h3>
+            </div>
+            <div class="notification-body">
+                <div id="notification-icon" class="notification-icon"></div>
+                <p id="notification-message">Message goes here</p>
+            </div>
+            <div class="notification-actions">
+                <button id="notification-cancel" class="btn-secondary" style="display: none;">Cancel</button>
+                <button id="notification-confirm" class="btn-primary">OK</button>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Success Toast Notifications -->
-<div id="toast-container" class="toast-container"></div>
+    <!-- Success Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
     <script src="app.js"></script>
     <script>
         let isLoginMode = true;
 
-        document.getElementById('switch-mode').addEventListener('click', (e) => {
+        // Wait for DOM and app.js to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Login page initialized');
+            
+            // Initialize mode switching
+            initializeModeSwitch();
+            
+            // Add debugging
+            window.debugLoginPage = function() {
+                console.log('=== LOGIN PAGE DEBUG ===');
+                console.log('Login form:', document.getElementById('login-form'));
+                console.log('Register form:', document.getElementById('register-form'));
+                console.log('Login email:', document.getElementById('login-email'));
+                console.log('Login password:', document.getElementById('login-password'));
+                console.log('Login function available:', typeof login === 'function');
+                console.log('Register function available:', typeof register === 'function');
+                console.log('Is login mode:', isLoginMode);
+            };
+        });
+
+        function initializeModeSwitch() {
+            const switchModeBtn = document.getElementById('switch-mode');
+            if (switchModeBtn) {
+                switchModeBtn.addEventListener('click', handleModeSwitch);
+            }
+        }
+
+        function handleModeSwitch(e) {
             e.preventDefault();
+            console.log('Switching auth mode from', isLoginMode ? 'login' : 'register');
+            
             isLoginMode = !isLoginMode;
             
             const title = document.getElementById('form-title');
-            const registerFields = document.getElementById('register-fields');
-            const submitBtn = document.querySelector('button[type="submit"]');
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
             const switchText = document.getElementById('switch-text');
             const switchMode = document.getElementById('switch-mode');
             
             if (isLoginMode) {
+                // Switch to Login mode
                 title.textContent = 'Login';
-                registerFields.style.display = 'none';
-                submitBtn.textContent = 'Login';
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
                 switchText.textContent = "Don't have an account?";
                 switchMode.textContent = 'Register';
+                
+                // Clear register form
+                registerForm.reset();
             } else {
+                // Switch to Register mode
                 title.textContent = 'Register';
-                registerFields.style.display = 'block';
-                submitBtn.textContent = 'Register';
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
                 switchText.textContent = 'Already have an account?';
                 switchMode.textContent = 'Login';
+                
+                // Clear login form
+                loginForm.reset();
+            }
+            
+            console.log('Switched to', isLoginMode ? 'login' : 'register', 'mode');
+        }
+
+        // Enhanced form validation (optional)
+        function validateLoginForm(email, password) {
+            if (!email || !password) {
+                throw new Error('Please enter both email and password');
+            }
+            
+            if (!email.includes('@')) {
+                throw new Error('Please enter a valid email address');
+            }
+            
+            if (password.length < 6) {
+                throw new Error('Password must be at least 6 characters long');
+            }
+        }
+
+        function validateRegisterForm(username, email, password) {
+            if (!username || !email || !password) {
+                throw new Error('Please fill in all fields');
+            }
+            
+            if (username.length < 3) {
+                throw new Error('Username must be at least 3 characters long');
+            }
+            
+            if (!email.includes('@')) {
+                throw new Error('Please enter a valid email address');
+            }
+            
+            if (password.length < 6) {
+                throw new Error('Password must be at least 6 characters long');
+            }
+        }
+
+        // Fallback form handlers (in case app.js event delegation doesn't work)
+        document.addEventListener('submit', function(e) {
+            if (e.target.id === 'login-form' && typeof login !== 'function') {
+                console.error('Login function not available, app.js may not be loaded properly');
+                e.preventDefault();
+                alert('Login function not available. Please refresh the page.');
+                return;
+            }
+            
+            if (e.target.id === 'register-form' && typeof register !== 'function') {
+                console.error('Register function not available, app.js may not be loaded properly');
+                e.preventDefault();
+                alert('Register function not available. Please refresh the page.');
+                return;
             }
         });
 
-        document.getElementById('auth-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // Test function for debugging
+        window.testLoginFunctionality = function() {
+            console.log('Testing login functionality...');
             
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            // Fill in test data
+            const loginEmail = document.getElementById('login-email');
+            const loginPassword = document.getElementById('login-password');
             
-            try {
-                if (isLoginMode) {
-                    await login(email, password);
-                } else {
-                    const username = document.getElementById('username').value;
-                    await register(username, email, password);
-                }
-            } catch (error) {
-                alert(error.message);
+            if (loginEmail && loginPassword) {
+                loginEmail.value = 'test@example.com';
+                loginPassword.value = 'testpassword';
+                
+                console.log('Test data filled. Now submitting login form...');
+                document.getElementById('login-form').dispatchEvent(new Event('submit'));
+            } else {
+                console.error('Login form elements not found');
             }
-        });
+        };
     </script>
 </body>
 </html>

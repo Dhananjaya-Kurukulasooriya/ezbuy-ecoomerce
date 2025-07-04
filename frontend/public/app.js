@@ -1308,3 +1308,300 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// ADD THIS TO THE BOTTOM OF YOUR APP.JS (or replace existing DOMContentLoaded section)
+
+// Enhanced initialization that fixes the login button issue
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 App initializing...');
+    
+    // Initialize auth and cart
+    checkAuth();
+    updateCartCount();
+    
+    // Initialize event handlers with robust delegation
+    initializeEventHandlers();
+    
+    // Initialize page-specific content
+    initializePageContent();
+});
+
+function initializeEventHandlers() {
+    console.log('📋 Setting up event handlers...');
+    
+    // Universal form submission handler
+    document.addEventListener('submit', function(e) {
+        console.log('📝 Form submitted:', e.target.id);
+        
+        // Handle login form
+        if (e.target.id === 'login-form') {
+            e.preventDefault();
+            handleLogin(e.target);
+        }
+        
+        // Handle register form  
+        if (e.target.id === 'register-form') {
+            e.preventDefault();
+            handleRegister(e.target);
+        }
+        
+        // Handle checkout form
+        if (e.target.id === 'checkout-form') {
+            e.preventDefault();
+            processCheckout();
+        }
+    });
+    
+    // Universal click handler for buttons
+    document.addEventListener('click', function(e) {
+        // Login button clicks
+        if (e.target.classList.contains('login-btn') || e.target.id === 'login-btn') {
+            e.preventDefault();
+            console.log('🔐 Login button clicked');
+            
+            const form = e.target.closest('form') || document.getElementById('login-form');
+            if (form) {
+                handleLogin(form);
+            } else {
+                console.error('❌ Login form not found');
+                customAlert('Login form not found. Please refresh the page.', 'error');
+            }
+        }
+        
+        // Register button clicks
+        if (e.target.classList.contains('register-btn') || e.target.id === 'register-btn') {
+            e.preventDefault();
+            console.log('📝 Register button clicked');
+            
+            const form = e.target.closest('form') || document.getElementById('register-form');
+            if (form) {
+                handleRegister(form);
+            } else {
+                console.error('❌ Register form not found');
+                customAlert('Register form not found. Please refresh the page.', 'error');
+            }
+        }
+        
+        // Logout button clicks
+        if (e.target.classList.contains('logout-btn') || e.target.id === 'logout-btn') {
+            e.preventDefault();
+            console.log('🚪 Logout button clicked');
+            logout();
+        }
+    });
+    
+    console.log('✅ Event handlers initialized');
+}
+
+async function handleLogin(form) {
+    console.log('🔐 Processing login...');
+    
+    try {
+        // Get email and password from form
+        const emailInput = form.querySelector('input[name="email"]') || 
+                          form.querySelector('input[type="email"]') || 
+                          form.querySelector('#login-email') ||
+                          form.querySelector('#email');
+                          
+        const passwordInput = form.querySelector('input[name="password"]') || 
+                             form.querySelector('input[type="password"]') || 
+                             form.querySelector('#login-password') ||
+                             form.querySelector('#password');
+        
+        if (!emailInput || !passwordInput) {
+            console.error('❌ Login form inputs not found');
+            console.log('Available inputs:', form.querySelectorAll('input'));
+            throw new Error('Login form inputs not found. Please refresh the page.');
+        }
+        
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        console.log('📧 Email:', email);
+        console.log('🔒 Password length:', password.length);
+        
+        if (!email || !password) {
+            throw new Error('Please enter both email and password.');
+        }
+        
+        // Disable submit button
+        const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.login-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Logging in...';
+        }
+        
+        // Attempt login
+        await login(email, password);
+        
+    } catch (error) {
+        console.error('❌ Login error:', error);
+        await customAlert(error.message || 'Login failed. Please try again.', 'error');
+        
+        // Re-enable submit button
+        const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.login-btn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Login';
+        }
+    }
+}
+
+async function handleRegister(form) {
+    console.log('📝 Processing registration...');
+    
+    try {
+        // Get form inputs
+        const usernameInput = form.querySelector('input[name="username"]') || 
+                             form.querySelector('#register-username') ||
+                             form.querySelector('#username');
+                             
+        const emailInput = form.querySelector('input[name="email"]') || 
+                          form.querySelector('input[type="email"]') || 
+                          form.querySelector('#register-email') ||
+                          form.querySelector('#email');
+                          
+        const passwordInput = form.querySelector('input[name="password"]') || 
+                             form.querySelector('input[type="password"]') || 
+                             form.querySelector('#register-password') ||
+                             form.querySelector('#password');
+        
+        if (!usernameInput || !emailInput || !passwordInput) {
+            console.error('❌ Register form inputs not found');
+            console.log('Available inputs:', form.querySelectorAll('input'));
+            throw new Error('Registration form inputs not found. Please refresh the page.');
+        }
+        
+        const username = usernameInput.value.trim();
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        console.log('👤 Username:', username);
+        console.log('📧 Email:', email);
+        console.log('🔒 Password length:', password.length);
+        
+        if (!username || !email || !password) {
+            throw new Error('Please fill in all fields.');
+        }
+        
+        // Disable submit button
+        const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.register-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Registering...';
+        }
+        
+        // Attempt registration
+        await register(username, email, password);
+        
+    } catch (error) {
+        console.error('❌ Registration error:', error);
+        await customAlert(error.message || 'Registration failed. Please try again.', 'error');
+        
+        // Re-enable submit button
+        const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.register-btn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Register';
+        }
+    }
+}
+
+function initializePageContent() {
+    const currentPath = window.location.pathname;
+    console.log('🌐 Current path:', currentPath);
+    
+    // Initialize page-specific content
+    switch (currentPath) {
+        case '/':
+        case '/index.html':
+            if (document.getElementById('featured-products-grid')) {
+                console.log('🏠 Loading home page content...');
+                loadFeaturedProducts();
+            }
+            break;
+        case '/products':
+        case '/products.html':
+            if (document.getElementById('products-grid')) {
+                console.log('🛍️ Loading products page...');
+                loadProducts();
+                loadFilters();
+            }
+            break;
+        case '/cart':
+        case '/cart.html':
+            if (document.getElementById('cart-items')) {
+                console.log('🛒 Loading cart page...');
+                loadCartItems();
+            }
+            break;
+        case '/orders':
+        case '/orders.html':
+            if (document.getElementById('orders-container')) {
+                console.log('📦 Loading orders page...');
+                loadOrders();
+            }
+            break;
+        case '/admin':
+        case '/admin.html':
+            if (currentUser?.role === 'admin') {
+                console.log('👑 Loading admin page...');
+                loadAdminDashboard();
+            }
+            break;
+        case '/login':
+        case '/login.html':
+            console.log('🔐 Login page detected');
+            break;
+    }
+}
+
+// Enhanced logout with better debugging
+function logout() {
+    console.log('🚪 Logout initiated...');
+    
+    // Clear all local storage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('cart');
+    currentUser = null;
+    cart = [];
+    
+    // Update UI
+    updateNavigation();
+    updateCartCount();
+    
+    showToast('Logged out successfully', 'info');
+    
+    console.log('🧹 Cleared user data, redirecting...');
+    
+    // Redirect with forced refresh
+    setTimeout(() => {
+        window.location.replace('/');
+        // Force a clean reload
+        setTimeout(() => {
+            window.location.reload(true);
+        }, 100);
+    }, 1000);
+}
+
+// Global debugging functions
+window.debugAuth = function() {
+    console.log('=== 🔍 AUTH DEBUG INFO ===');
+    console.log('Current user:', currentUser);
+    console.log('Token:', localStorage.getItem('token'));
+    console.log('Login function exists:', typeof login === 'function');
+    console.log('Register function exists:', typeof register === 'function');
+    console.log('Login form:', document.getElementById('login-form'));
+    console.log('Register form:', document.getElementById('register-form'));
+    console.log('All forms:', document.querySelectorAll('form'));
+    console.log('All login buttons:', document.querySelectorAll('.login-btn'));
+    console.log('All register buttons:', document.querySelectorAll('.register-btn'));
+};
+
+window.testLogin = function(email = 'test@example.com', password = 'test123') {
+    console.log('🧪 Testing login with:', email);
+    login(email, password).catch(console.error);
+};
+
+console.log('✅ Enhanced app.js loaded successfully');
