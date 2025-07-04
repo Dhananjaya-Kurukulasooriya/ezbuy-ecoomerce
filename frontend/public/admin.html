@@ -37,25 +37,18 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         
-        .admin-success {
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            border: 1px solid #34d399;
-            color: #065f46;
-            padding: 20px;
-            border-radius: 12px;
-            margin: 20px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        .unauthorized-access {
+            text-align: center;
+            padding: 100px 20px;
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-radius: 16px;
+            margin: 50px 0;
         }
         
-        .security-warning {
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            border: 2px solid #f59e0b;
-            color: #92400e;
-            padding: 20px;
-            border-radius: 12px;
-            margin: 20px 0;
-            font-weight: 600;
-            text-align: center;
+        .unauthorized-access h2 {
+            color: #dc2626;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
         }
         
         .admin-panel {
@@ -151,32 +144,6 @@
             margin: 0;
             opacity: 0.9;
             font-weight: 500;
-        }
-        
-        .form-inline {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-        
-        .form-inline input,
-        .form-inline select {
-            flex: 1;
-            min-width: 200px;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
-        }
-        
-        .form-inline input:focus,
-        .form-inline select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         
         .table-container {
@@ -333,28 +300,9 @@
             box-shadow: 0 8px 25px rgba(107, 114, 128, 0.4);
         }
         
-        .unauthorized-access {
-            text-align: center;
-            padding: 100px 20px;
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            border-radius: 16px;
-            margin: 50px 0;
-        }
-        
-        .unauthorized-access h2 {
-            color: #dc2626;
-            font-size: 2.5rem;
-            margin-bottom: 20px;
-        }
-        
         @media (max-width: 768px) {
             .form-grid {
                 grid-template-columns: 1fr;
-            }
-            
-            .form-inline {
-                flex-direction: column;
-                align-items: stretch;
             }
             
             .admin-header {
@@ -390,21 +338,17 @@
     <!-- Loading State -->
     <div id="admin-loading" class="admin-loading">
         <div class="loading-spinner"></div>
-        <p>Verifying admin access...</p>
+        <p>Checking admin access...</p>
     </div>
 
     <!-- Authentication Required -->
     <div id="auth-required" style="display: none;" class="container">
         <div class="unauthorized-access">
-            <h2>🔒 Admin Access Denied</h2>
+            <h2>🔒 Admin Access Required</h2>
             <p style="font-size: 1.2rem; color: #dc2626; margin-bottom: 30px;">
-                You do not have administrator privileges to access this page.
+                You need administrator privileges to access this page.
             </p>
-            <div class="security-warning">
-                ⚠️ This area is restricted to authorized personnel only. 
-                All access attempts are logged and monitored.
-            </div>
-            <a href="/login" class="btn-primary" style="margin-top: 20px;">Go to Login</a>
+            <a href="/login" class="btn-primary">Go to Login</a>
         </div>
     </div>
 
@@ -419,8 +363,8 @@
                     </div>
                     <div style="text-align: right;">
                         <span style="color: #64748b;">Welcome, <strong id="admin-username" style="color: #1e293b;"></strong></span>
-                        <button onclick="secureLogout()" class="btn-secondary" style="margin-left: 15px;">
-                            🚪 Secure Logout
+                        <button onclick="logout()" class="btn-secondary" style="margin-left: 15px;">
+                            🚪 Logout
                         </button>
                     </div>
                 </div>
@@ -438,13 +382,16 @@
                 </div>
                 
                 <div id="admin-content" class="admin-content">
-                    <!-- Content will be loaded here -->
+                    <div class="admin-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Loading dashboard...</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Enhanced Notification System -->
+    <!-- Notification System -->
     <div id="notification-overlay" class="notification-overlay" style="display: none;">
         <div class="notification-modal">
             <div class="notification-header">
@@ -465,40 +412,29 @@
 
     <script src="app.js"></script>
     <script>
-        // Enhanced Admin Security System
+        // Simple Working Admin System
         let currentAdminTab = 'dashboard';
-        let products = [];
-        let orders = [];
-        let stats = {};
-        let editingProductId = null;
-        let sessionTimeout = null;
 
-        // Initialize admin page with enhanced security
+        // Initialize admin page
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('🔧 Admin panel initializing with enhanced security...');
+            console.log('🔧 Admin panel initializing...');
             
             try {
+                // Show loading
                 showElement('admin-loading');
                 hideElement('auth-required');
                 hideElement('admin-panel');
                 
-                // Multi-layer authentication check
-                const authResult = await performSecurityCheck();
+                // Simple admin access check
+                const authResult = await checkAdminAccess();
                 
-                if (!authResult.authenticated) {
-                    console.log('❌ Authentication failed:', authResult.reason);
+                if (!authResult.success) {
+                    console.log('❌ Admin access denied:', authResult.reason);
                     showAuthRequired();
                     return;
                 }
                 
-                if (!authResult.isAdmin) {
-                    console.log('❌ User is not admin:', authResult.userRole);
-                    showAuthRequired();
-                    return;
-                }
-                
-                console.log('✅ Admin authenticated:', authResult.username);
-                startSessionMonitoring();
+                console.log('✅ Admin access granted:', authResult.username);
                 showAdminPanel();
                 
             } catch (error) {
@@ -507,133 +443,47 @@
             }
         });
 
-        // Enhanced security check with server validation
-        async function performSecurityCheck() {
+        // Simple admin access check that works
+        async function checkAdminAccess() {
             try {
-                // Check local storage first
+                // Check if user is logged in
                 const token = localStorage.getItem('token');
-                const user = localStorage.getItem('user');
+                const userString = localStorage.getItem('user');
                 
-                if (!token || !user) {
-                    return { authenticated: false, reason: 'No credentials found' };
+                if (!token || !userString) {
+                    return { success: false, reason: 'Not logged in' };
                 }
                 
-                // Validate with server
-                const response = await apiCallWithRetry('/api/auth/validate-admin', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                const user = JSON.parse(userString);
                 
-                if (!response || !response.ok) {
-                    // Clear invalid credentials
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    return { authenticated: false, reason: 'Server validation failed' };
+                // Check if user is admin
+                if (!user.role || user.role !== 'admin') {
+                    return { success: false, reason: 'Not admin user', userRole: user.role };
                 }
                 
-                const validationResult = await response.json();
-                
-                if (!validationResult.valid || validationResult.user.role !== 'admin') {
-                    return { 
-                        authenticated: false, 
-                        isAdmin: false,
-                        reason: 'Not admin user',
-                        userRole: validationResult.user?.role 
-                    };
-                }
-                
-                // Update current user
-                currentUser = validationResult.user;
+                // Set current user
+                currentUser = user;
                 
                 return {
-                    authenticated: true,
-                    isAdmin: true,
-                    username: validationResult.user.username || validationResult.user.email,
-                    userId: validationResult.user.id
+                    success: true,
+                    username: user.username || user.email,
+                    userId: user._id || user.id
                 };
                 
             } catch (error) {
-                console.error('Security check error:', error);
-                return { authenticated: false, reason: 'Security check failed' };
+                console.error('Admin access check error:', error);
+                return { success: false, reason: 'Check failed' };
             }
         }
 
-        // Session monitoring and timeout
-        function startSessionMonitoring() {
-            // Check session every 5 minutes
-            sessionTimeout = setInterval(async () => {
-                const isValid = await performSecurityCheck();
-                if (!isValid.authenticated || !isValid.isAdmin) {
-                    await customAlert(
-                        'Your admin session has expired. Please login again.',
-                        'warning',
-                        '⚠️ Session Expired'
-                    );
-                    secureLogout();
-                }
-            }, 5 * 60 * 1000); // 5 minutes
-            
-            // Auto-logout after 30 minutes of inactivity
-            let lastActivity = Date.now();
-            
-            const updateActivity = () => {
-                lastActivity = Date.now();
-            };
-            
-            // Track user activity
-            document.addEventListener('click', updateActivity);
-            document.addEventListener('keypress', updateActivity);
-            document.addEventListener('scroll', updateActivity);
-            
-            // Check for inactivity every minute
-            setInterval(() => {
-                const inactiveTime = Date.now() - lastActivity;
-                const maxInactiveTime = 30 * 60 * 1000; // 30 minutes
-                
-                if (inactiveTime > maxInactiveTime) {
-                    customAlert(
-                        'You have been automatically logged out due to inactivity.',
-                        'info',
-                        'ℹ️ Auto Logout'
-                    ).then(() => {
-                        secureLogout();
-                    });
-                }
-            }, 60 * 1000); // Check every minute
-        }
-
-        // Enhanced secure logout
-        function secureLogout() {
-            if (sessionTimeout) {
-                clearInterval(sessionTimeout);
-            }
-            
-            // Clear all stored data
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            localStorage.removeItem('cart');
-            
-            // Clear variables
-            currentUser = null;
-            cart = [];
-            
-            showToast('Securely logged out', 'info');
-            
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 1000);
-        }
-
-        // Show auth required screen with enhanced messaging
+        // Show auth required screen
         function showAuthRequired() {
             hideElement('admin-loading');
             hideElement('admin-panel');
             showElement('auth-required');
         }
 
-        // Show admin panel with security confirmation
+        // Show admin panel
         function showAdminPanel() {
             hideElement('admin-loading');
             hideElement('auth-required');
@@ -642,6 +492,7 @@
             document.getElementById('admin-username').textContent = 
                 currentUser.username || currentUser.email;
             
+            // Load dashboard
             showAdminTab('dashboard');
         }
 
@@ -656,7 +507,7 @@
             if (element) element.style.display = 'none';
         }
 
-        // Enhanced tab management
+        // Tab management - uses functions from app.js
         function showAdminTab(tabName) {
             console.log(`🔄 Switching to ${tabName} tab`);
             currentAdminTab = tabName;
@@ -665,657 +516,36 @@
             document.querySelectorAll('.admin-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+            const activeTab = document.getElementById(`tab-${tabName}`);
+            if (activeTab) activeTab.classList.add('active');
             
-            // Load content based on tab
+            // Load content based on tab - these functions are in app.js
             switch (tabName) {
                 case 'dashboard':
-                    loadDashboard();
+                    if (typeof loadAdminDashboard === 'function') {
+                        loadAdminDashboard();
+                    } else {
+                        console.error('loadAdminDashboard function not found');
+                    }
                     break;
                 case 'products':
-                    loadProductsManagement();
+                    if (typeof loadAdminProducts === 'function') {
+                        loadAdminProducts();
+                    } else {
+                        console.error('loadAdminProducts function not found');
+                    }
                     break;
                 case 'orders':
-                    loadOrdersManagement();
+                    if (typeof loadAdminOrders === 'function') {
+                        loadAdminOrders();
+                    } else {
+                        console.error('loadAdminOrders function not found');
+                    }
                     break;
             }
         }
 
-        // Enhanced dashboard with better error handling
-        async function loadDashboard() {
-            const content = document.getElementById('admin-content');
-            content.innerHTML = `
-                <div class="admin-loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading dashboard statistics...</p>
-                </div>
-            `;
-            
-            try {
-                const response = await apiCallWithRetry('/api/admin/orders/stats');
-                
-                if (!response || !response.ok) {
-                    throw new Error('Failed to load dashboard stats');
-                }
-                
-                stats = await response.json();
-                renderDashboard();
-                
-            } catch (error) {
-                console.error('❌ Dashboard loading error:', error);
-                content.innerHTML = `
-                    <div class="admin-error">
-                        <h3>🚨 Dashboard Loading Error</h3>
-                        <p>Unable to load dashboard statistics. This could be due to:</p>
-                        <ul style="text-align: left; margin: 15px 0;">
-                            <li>Server connectivity issues</li>
-                            <li>Database connection problems</li>
-                            <li>Insufficient admin permissions</li>
-                        </ul>
-                        <button onclick="loadDashboard()" class="btn-primary">🔄 Retry</button>
-                    </div>
-                `;
-            }
-        }
-
-        function renderDashboard() {
-            const content = document.getElementById('admin-content');
-            content.innerHTML = `
-                <h2>📊 Dashboard Overview</h2>
-                
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <h3>${stats.totalOrders || 0}</h3>
-                        <p>Total Orders</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>$${(stats.totalRevenue || 0).toFixed(2)}</h3>
-                        <p>Total Revenue</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>${getStatusCount('pending')}</h3>
-                        <p>Pending Orders</p>
-                    </div>
-                    <div class="stat-card">
-                        <h3>${getStatusCount('delivered')}</h3>
-                        <p>Delivered Orders</p>
-                    </div>
-                </div>
-                
-                <h3>📈 Order Status Breakdown</h3>
-                <div class="stats-grid">
-                    ${(stats.statusStats || []).map(stat => `
-                        <div class="stat-card">
-                            <h3>${stat.count}</h3>
-                            <p>${stat._id.charAt(0).toUpperCase() + stat._id.slice(1)}</p>
-                        </div>
-                    `).join('')}
-                </div>
-                
-                <div style="margin-top: 40px; text-align: center;">
-                    <button onclick="showAdminTab('products')" class="btn-primary" style="margin-right: 15px;">
-                        📦 Manage Products
-                    </button>
-                    <button onclick="showAdminTab('orders')" class="btn-secondary">
-                        📋 Manage Orders
-                    </button>
-                </div>
-            `;
-        }
-
-        function getStatusCount(status) {
-            if (!stats.statusStats) return 0;
-            const statusStat = stats.statusStats.find(s => s._id === status);
-            return statusStat ? statusStat.count : 0;
-        }
-
-        // Enhanced products management with working edit/delete
-        async function loadProductsManagement() {
-            const content = document.getElementById('admin-content');
-            content.innerHTML = `
-                <div class="admin-loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading products...</p>
-                </div>
-            `;
-            
-            try {
-                const response = await apiCallWithRetry('/api/products');
-                
-                if (!response || !response.ok) {
-                    throw new Error('Failed to load products');
-                }
-                
-                products = await response.json();
-                renderProductsManagement();
-                
-            } catch (error) {
-                console.error('❌ Products loading error:', error);
-                content.innerHTML = `
-                    <div class="admin-error">
-                        <h3>🚨 Products Loading Error</h3>
-                        <p>Unable to load products for management.</p>
-                        <button onclick="loadProductsManagement()" class="btn-primary">🔄 Retry</button>
-                    </div>
-                `;
-            }
-        }
-
-        function renderProductsManagement() {
-            const content = document.getElementById('admin-content');
-            content.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-                    <h2>📦 Products Management</h2>
-                    <button onclick="showAddProductForm()" class="btn-primary">
-                        ➕ Add New Product
-                    </button>
-                </div>
-                
-                <div id="product-form-container"></div>
-                
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Image</th>
-                                <th>Name</th>
-                                <th>Category</th>
-                                <th>Brand</th>
-                                <th>Price</th>
-                                <th>Stock</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${products.map(product => `
-                                <tr>
-                                    <td>
-                                        <img src="${product.image || 'https://via.placeholder.com/60x60'}" 
-                                             alt="${product.name}" 
-                                             style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">
-                                    </td>
-                                    <td><strong>${product.name}</strong></td>
-                                    <td>${product.category}</td>
-                                    <td>${product.brand}</td>
-                                    <td><strong>$${product.price}</strong></td>
-                                    <td>
-                                        <span style="color: ${product.stock > 10 ? '#059669' : product.stock > 0 ? '#f59e0b' : '#dc2626'}">
-                                            ${product.stock}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            <button onclick="editProduct('${product._id}')" class="btn-small btn-edit">
-                                                ✏️ Edit
-                                            </button>
-                                            <button onclick="deleteProduct('${product._id}')" class="btn-small btn-delete">
-                                                🗑️ Delete
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                ${products.length === 0 ? 
-                    '<div style="text-align: center; margin-top: 50px; color: #64748b;"><p>No products found. Add your first product to get started!</p></div>' : 
-                    ''
-                }
-            `;
-        }
-
-        // Enhanced add product form
-        function showAddProductForm() {
-            const container = document.getElementById('product-form-container');
-            container.innerHTML = `
-                <div class="product-form">
-                    <h3>➕ Add New Product</h3>
-                    <form onsubmit="submitProductForm(event)" id="product-form">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Product Name *</label>
-                                <input type="text" id="product-name" required 
-                                       placeholder="Enter product name">
-                            </div>
-                            <div class="form-group">
-                                <label>Price *</label>
-                                <input type="number" id="product-price" step="0.01" required 
-                                       placeholder="0.00" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Category *</label>
-                                <input type="text" id="product-category" required 
-                                       placeholder="e.g., Electronics, Clothing">
-                            </div>
-                            <div class="form-group">
-                                <label>Brand *</label>
-                                <input type="text" id="product-brand" required 
-                                       placeholder="Enter brand name">
-                            </div>
-                            <div class="form-group">
-                                <label>Stock Quantity *</label>
-                                <input type="number" id="product-stock" required min="0" 
-                                       placeholder="Available quantity">
-                            </div>
-                            <div class="form-group">
-                                <label>Image URL</label>
-                                <input type="url" id="product-image" 
-                                       placeholder="https://example.com/image.jpg">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Description *</label>
-                            <textarea id="product-description" required rows="4" 
-                                      placeholder="Detailed product description..."></textarea>
-                        </div>
-                        <div style="display: flex; gap: 15px; margin-top: 30px;">
-                            <button type="submit" class="btn-primary">
-                                💾 Add Product
-                            </button>
-                            <button type="button" onclick="hideProductForm()" class="btn-secondary">
-                                ❌ Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            `;
-            container.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // Enhanced edit product functionality
-        async function editProduct(productId) {
-            const product = products.find(p => p._id === productId);
-            if (!product) {
-                await customAlert('Product not found.', 'error', '❌ Error');
-                return;
-            }
-
-            editingProductId = productId;
-            const container = document.getElementById('product-form-container');
-            container.innerHTML = `
-                <div class="product-form">
-                    <h3>✏️ Edit Product: ${product.name}</h3>
-                    <form onsubmit="submitEditProductForm(event)" id="edit-product-form">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Product Name *</label>
-                                <input type="text" id="edit-product-name" required 
-                                       value="${product.name}">
-                            </div>
-                            <div class="form-group">
-                                <label>Price *</label>
-                                <input type="number" id="edit-product-price" step="0.01" required 
-                                       value="${product.price}" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Category *</label>
-                                <input type="text" id="edit-product-category" required 
-                                       value="${product.category}">
-                            </div>
-                            <div class="form-group">
-                                <label>Brand *</label>
-                                <input type="text" id="edit-product-brand" required 
-                                       value="${product.brand}">
-                            </div>
-                            <div class="form-group">
-                                <label>Stock Quantity *</label>
-                                <input type="number" id="edit-product-stock" required min="0" 
-                                       value="${product.stock}">
-                            </div>
-                            <div class="form-group">
-                                <label>Image URL</label>
-                                <input type="url" id="edit-product-image" 
-                                       value="${product.image || ''}">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Description *</label>
-                            <textarea id="edit-product-description" required rows="4">${product.description}</textarea>
-                        </div>
-                        <div style="display: flex; gap: 15px; margin-top: 30px;">
-                            <button type="submit" class="btn-primary">
-                                💾 Update Product
-                            </button>
-                            <button type="button" onclick="hideProductForm()" class="btn-secondary">
-                                ❌ Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            `;
-            container.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // Submit edit product form
-        async function submitEditProductForm(event) {
-            event.preventDefault();
-            
-            const productData = {
-                name: document.getElementById('edit-product-name').value.trim(),
-                description: document.getElementById('edit-product-description').value.trim(),
-                price: parseFloat(document.getElementById('edit-product-price').value),
-                category: document.getElementById('edit-product-category').value.trim(),
-                brand: document.getElementById('edit-product-brand').value.trim(),
-                stock: parseInt(document.getElementById('edit-product-stock').value),
-                image: document.getElementById('edit-product-image').value.trim() || 
-                       'https://via.placeholder.com/300x200?text=Product+Image'
-            };
-            
-            // Validation
-            if (!productData.name || !productData.description || !productData.category || !productData.brand) {
-                await customAlert('Please fill in all required fields.', 'warning', '⚠️ Missing Information');
-                return;
-            }
-            
-            if (productData.price <= 0) {
-                await customAlert('Price must be greater than 0.', 'warning', '⚠️ Invalid Price');
-                return;
-            }
-            
-            try {
-                console.log('💾 Updating product:', editingProductId, productData);
-                const response = await apiCallWithRetry(`/api/products/${editingProductId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(productData)
-                });
-                
-                if (response && response.ok) {
-                    showToast('Product updated successfully!', 'success');
-                    hideProductForm();
-                    editingProductId = null;
-                    loadProductsManagement();
-                } else {
-                    const error = await response.json();
-                    await customAlert(
-                        error.error || 'Failed to update product', 
-                        'error', 
-                        '❌ Update Failed'
-                    );
-                }
-            } catch (error) {
-                console.error('❌ Update product error:', error);
-                await customAlert(
-                    'Network error. Please check your connection and try again.', 
-                    'error', 
-                    '❌ Network Error'
-                );
-            }
-        }
-
-        function hideProductForm() {
-            document.getElementById('product-form-container').innerHTML = '';
-            editingProductId = null;
-        }
-
-        // Enhanced submit product form
-        async function submitProductForm(event) {
-            event.preventDefault();
-            
-            const productData = {
-                name: document.getElementById('product-name').value.trim(),
-                description: document.getElementById('product-description').value.trim(),
-                price: parseFloat(document.getElementById('product-price').value),
-                category: document.getElementById('product-category').value.trim(),
-                brand: document.getElementById('product-brand').value.trim(),
-                stock: parseInt(document.getElementById('product-stock').value),
-                image: document.getElementById('product-image').value.trim() || 
-                       'https://via.placeholder.com/300x200?text=Product+Image'
-            };
-            
-            // Enhanced validation
-            if (!productData.name || !productData.description || !productData.category || !productData.brand) {
-                await customAlert('Please fill in all required fields.', 'warning', '⚠️ Missing Information');
-                return;
-            }
-            
-            if (productData.price <= 0) {
-                await customAlert('Price must be greater than 0.', 'warning', '⚠️ Invalid Price');
-                return;
-            }
-            
-            if (productData.stock < 0) {
-                await customAlert('Stock cannot be negative.', 'warning', '⚠️ Invalid Stock');
-                return;
-            }
-            
-            try {
-                console.log('💾 Adding product:', productData);
-                const response = await apiCallWithRetry('/api/products', {
-                    method: 'POST',
-                    body: JSON.stringify(productData)
-                });
-                
-                if (response && response.ok) {
-                    showToast('Product added successfully!', 'success');
-                    hideProductForm();
-                    loadProductsManagement();
-                } else {
-                    const error = await response.json();
-                    await customAlert(
-                        error.error || 'Failed to add product', 
-                        'error', 
-                        '❌ Add Failed'
-                    );
-                }
-            } catch (error) {
-                console.error('❌ Add product error:', error);
-                await customAlert(
-                    'Network error. Please check your connection and try again.', 
-                    'error', 
-                    '❌ Network Error'
-                );
-            }
-        }
-
-        // Enhanced delete product with confirmation
-        async function deleteProduct(productId) {
-            const product = products.find(p => p._id === productId);
-            if (!product) {
-                await customAlert('Product not found.', 'error', '❌ Error');
-                return;
-            }
-            
-            const confirmed = await customConfirm(
-                `Are you sure you want to permanently delete "${product.name}"?\n\nThis action cannot be undone and will remove the product from all orders and listings.`,
-                '🗑️ Delete Product',
-                'Yes, Delete Forever',
-                'Cancel'
-            );
-            
-            if (!confirmed) return;
-            
-            try {
-                console.log('🗑️ Deleting product:', productId);
-                const response = await apiCallWithRetry(`/api/products/${productId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response && response.ok) {
-                    showToast('Product deleted successfully', 'success');
-                    loadProductsManagement();
-                } else {
-                    const error = await response.json();
-                    await customAlert(
-                        error.error || 'Failed to delete product', 
-                        'error', 
-                        '❌ Delete Failed'
-                    );
-                }
-            } catch (error) {
-                console.error('❌ Delete product error:', error);
-                await customAlert(
-                    'Network error. Please check your connection and try again.', 
-                    'error', 
-                    '❌ Network Error'
-                );
-            }
-        }
-
-        // Enhanced orders management
-        async function loadOrdersManagement() {
-            const content = document.getElementById('admin-content');
-            content.innerHTML = `
-                <div class="admin-loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading orders...</p>
-                </div>
-            `;
-            
-            try {
-                const response = await apiCallWithRetry('/api/admin/orders');
-                
-                if (!response || !response.ok) {
-                    throw new Error('Failed to load orders');
-                }
-                
-                const data = await response.json();
-                orders = data.orders || [];
-                renderOrdersManagement();
-                
-            } catch (error) {
-                console.error('❌ Orders loading error:', error);
-                content.innerHTML = `
-                    <div class="admin-error">
-                        <h3>🚨 Orders Loading Error</h3>
-                        <p>Unable to load orders for management.</p>
-                        <button onclick="loadOrdersManagement()" class="btn-primary">🔄 Retry</button>
-                    </div>
-                `;
-            }
-        }
-
-        function renderOrdersManagement() {
-            const content = document.getElementById('admin-content');
-            content.innerHTML = `
-                <h2>📋 Orders Management</h2>
-                
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Order ID</th>
-                                <th>Date</th>
-                                <th>Customer</th>
-                                <th>Items</th>
-                                <th>Total</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${orders.map(order => `
-                                <tr>
-                                    <td><strong>#${order._id.slice(-8)}</strong></td>
-                                    <td>${new Date(order.orderDate).toLocaleDateString()}</td>
-                                    <td>${order.userId?.email || order.userId?.username || 'Unknown'}</td>
-                                    <td>${order.items.length} item(s)</td>
-                                    <td><strong>$${order.totalAmount.toFixed(2)}</strong></td>
-                                    <td>
-                                        <span class="order-status ${order.status}" style="
-                                            padding: 5px 10px; 
-                                            border-radius: 20px; 
-                                            font-size: 12px; 
-                                            font-weight: bold;
-                                            text-transform: uppercase;
-                                            ${getStatusColor(order.status)}
-                                        ">
-                                            ${order.status}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <select onchange="updateOrderStatus('${order._id}', this.value)" 
-                                                style="padding: 8px; border-radius: 6px; border: 2px solid #e5e7eb;">
-                                            <option value="">Change Status</option>
-                                            <option value="confirmed">Confirmed</option>
-                                            <option value="processing">Processing</option>
-                                            <option value="shipped">Shipped</option>
-                                            <option value="delivered">Delivered</option>
-                                            <option value="cancelled">Cancelled</option>
-                                        </select>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                ${orders.length === 0 ? 
-                    '<div style="text-align: center; margin-top: 50px; color: #64748b;"><p>No orders found.</p></div>' : 
-                    ''
-                }
-            `;
-        }
-
-        function getStatusColor(status) {
-            const colors = {
-                'pending': 'background: #fef3c7; color: #92400e;',
-                'confirmed': 'background: #dbeafe; color: #1e40af;',
-                'processing': 'background: #f3e8ff; color: #7c3aed;',
-                'shipped': 'background: #ecfdf5; color: #059669;',
-                'delivered': 'background: #d1fae5; color: #065f46;',
-                'cancelled': 'background: #fee2e2; color: #dc2626;'
-            };
-            return colors[status] || 'background: #f1f5f9; color: #64748b;';
-        }
-
-        // Enhanced order status update
-        async function updateOrderStatus(orderId, newStatus) {
-            if (!newStatus) return;
-            
-            const order = orders.find(o => o._id === orderId);
-            if (!order) return;
-            
-            const confirmed = await customConfirm(
-                `Change order #${orderId.slice(-8)} status from "${order.status.toUpperCase()}" to "${newStatus.toUpperCase()}"?\n\nThis will update the customer's order tracking.`,
-                '🔄 Update Order Status',
-                'Yes, Update',
-                'Cancel'
-            );
-            
-            if (!confirmed) {
-                // Reset select value
-                event.target.value = '';
-                return;
-            }
-            
-            try {
-                console.log('🔄 Updating order status:', orderId, newStatus);
-                const response = await apiCallWithRetry(`/api/orders/${orderId}/status`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ status: newStatus })
-                });
-                
-                if (response && response.ok) {
-                    showToast('Order status updated successfully!', 'success');
-                    loadOrdersManagement();
-                } else {
-                    const error = await response.json();
-                    await customAlert(
-                        error.error || 'Failed to update order status', 
-                        'error', 
-                        '❌ Update Failed'
-                    );
-                    event.target.value = '';
-                }
-            } catch (error) {
-                console.error('❌ Update order status error:', error);
-                await customAlert(
-                    'Network error. Please check your connection and try again.', 
-                    'error', 
-                    '❌ Network Error'
-                );
-                event.target.value = '';
-            }
-        }
-
-        // Security monitoring - log access attempts
-        console.log('🛡️ Admin panel access logged:', {
-            timestamp: new Date().toISOString(),
-            userAgent: navigator.userAgent,
-            ip: 'logged-server-side'
-        });
+        console.log('✅ Admin page script loaded');
     </script>
 </body>
 </html>
