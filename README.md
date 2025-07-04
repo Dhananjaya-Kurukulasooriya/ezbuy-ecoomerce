@@ -190,6 +190,10 @@ The application is fully responsive and optimized for:
 - **Code Organization**: Modular, maintainable structure
 
 ---
+##Hosting in Azure
+Architecture
+![2](./azure.jpg)
+
 
 *Built with ❤️ for modern e-commerce experiences*
 by
