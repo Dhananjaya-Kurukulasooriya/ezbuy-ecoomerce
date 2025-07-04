@@ -120,6 +120,384 @@ function removeToast(toast) {
     }
 }
 
+// Cart page functions
+async function loadCartItems() {
+    const cartContainer = document.getElementById('cart-items');
+    const cartSummary = document.getElementById('cart-summary');
+    
+    if (!cartContainer) return;
+    
+    if (cart.length === 0) {
+        cartContainer.innerHTML = '<p>Your cart is empty</p>';
+        if (cartSummary) cartSummary.innerHTML = '';
+        return;
+    }
+    
+    let total = 0;
+    const cartHTML = [];
+    
+    for (const item of cart) {
+        try {
+            const response = await apiCallWithRetry(`/api/products/${item.productId}`);
+            if (!response || !response.ok) continue;
+            
+            const product = await response.json();
+            const itemTotal = product.price * item.quantity;
+            total += itemTotal;
+            
+            cartHTML.push(`
+                <div class="cart-item">
+                    <img src="${product.image || 'https://via.placeholder.com/80x80'}" alt="${product.name}">
+                    <div class="cart-item-details">
+                        <h4>${product.name}</h4>
+                        <p class="cart-item-price">${product.price}</p>
+                        <div class="quantity-controls">
+                            <button onclick="updateCartQuantity('${product._id}', ${item.quantity - 1})">-</button>
+                            <input type="number" value="${item.quantity}" 
+                                   onchange="updateCartQuantity('${product._id}', this.value)"
+                                   min="1" max="${product.stock}">
+                            <button onclick="updateCartQuantity('${product._id}', ${item.quantity + 1})">+</button>
+                        </div>
+                        <p>Subtotal: ${itemTotal.toFixed(2)}</p>
+                    </div>
+                    <button onclick="removeFromCart('${product._id}')" class="btn-danger">Remove</button>
+                </div>
+            `);
+        } catch (error) {
+            console.error('Error loading cart item:', error);
+        }
+    }
+    
+    cartContainer.innerHTML = cartHTML.join('');
+    if (cartSummary) {
+        cartSummary.innerHTML = `
+            <div class="cart-total">Total: ${total.toFixed(2)}</div>
+            <button onclick="proceedToCheckout()" class="btn-primary" style="width: 100%;">
+                Proceed to Checkout
+            </button>
+        `;
+    }
+}
+
+// Checkout functions
+async function proceedToCheckout() {
+    if (!currentUser) {
+        const shouldLogin = await customConfirm(
+            'You need to be logged in to checkout. Would you like to login now?',
+            'Login Required',
+            'Login',
+            'Cancel'
+        );
+        if (shouldLogin) {
+            window.location.href = '/login';
+        }
+        return;
+    }
+    
+    if (cart.length === 0) {
+        await customAlert('Your cart is empty. Add some items before checkout.', 'warning', '🛒 Empty Cart');
+        return;
+    }
+    
+    showCheckoutModal();
+}
+
+function showCheckoutModal() {
+    // Pre-fill user email if available
+    if (currentUser && currentUser.email) {
+        const emailField = document.getElementById('email');
+        if (emailField) emailField.value = currentUser.email;
+    }
+    
+    // Load order summary
+    loadCheckoutSummary();
+    
+    // Show modal
+    const modal = document.getElementById('checkout-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeCheckoutModal() {
+    const modal = document.getElementById('checkout-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+}
+
+async function loadCheckoutSummary() {
+    let subtotal = 0;
+    const summaryContainer = document.getElementById('checkout-order-summary');
+    if (!summaryContainer) return;
+    
+    const summaryHTML = [];
+    
+    for (const item of cart) {
+        try {
+            const response = await apiCallWithRetry(`/api/products/${item.productId}`);
+            if (!response || !response.ok) continue;
+            
+            const product = await response.json();
+            const itemTotal = product.price * item.quantity;
+            subtotal += itemTotal;
+            
+            summaryHTML.push(`
+                <div class="order-summary-item">
+                    <div>
+                        <strong>${product.name}</strong><br>
+                        <small>Qty: ${item.quantity} × ${product.price}</small>
+                    </div>
+                    <div><strong>${itemTotal.toFixed(2)}</strong></div>
+                </div>
+            `);
+        } catch (error) {
+            console.error('Error loading checkout item:', error);
+        }
+    }
+    
+    summaryContainer.innerHTML = summaryHTML.join('');
+    
+    // Calculate totals
+    const shipping = subtotal > 100 ? 0 : 9.99;
+    const tax = subtotal * 0.08;
+    const total = subtotal + shipping + tax;
+    
+    const subtotalEl = document.getElementById('checkout-subtotal');
+    const shippingEl = document.getElementById('checkout-shipping');
+    const taxEl = document.getElementById('checkout-tax');
+    const totalEl = document.getElementById('checkout-total');
+    
+    if (subtotalEl) subtotalEl.textContent = `${subtotal.toFixed(2)}`;
+    if (shippingEl) shippingEl.textContent = shipping === 0 ? 'FREE' : `${shipping.toFixed(2)}`;
+    if (taxEl) taxEl.textContent = `${tax.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `${total.toFixed(2)}`;
+}
+
+async function processCheckout() {
+    try {
+        // Collect form data
+        const formData = {
+            firstName: document.getElementById('first-name')?.value || '',
+            lastName: document.getElementById('last-name')?.value || '',
+            email: document.getElementById('email')?.value || '',
+            phone: document.getElementById('phone')?.value || '',
+            address: document.getElementById('address')?.value || '',
+            city: document.getElementById('city')?.value || '',
+            state: document.getElementById('state')?.value || '',
+            zip: document.getElementById('zip')?.value || '',
+            country: document.getElementById('country')?.value || '',
+            paymentMethod: document.querySelector('input[name="payment-method"]:checked')?.value || 'credit_card'
+        };
+        
+        // Validate required fields
+        const requiredFields = ['firstName', 'lastName', 'email', 'address', 'city', 'state', 'zip', 'country'];
+        for (const field of requiredFields) {
+            if (!formData[field]) {
+                await customAlert(
+                    `Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()} field.`,
+                    'warning',
+                    '⚠️ Missing Information'
+                );
+                return;
+            }
+        }
+        
+        // Prepare order items
+        const orderItems = cart.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+        }));
+        
+        // Submit order
+        const response = await apiCallWithRetry('/api/orders', {
+            method: 'POST',
+            body: JSON.stringify({
+                items: orderItems,
+                shippingAddress: {
+                    street: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    zipCode: formData.zip,
+                    country: formData.country
+                },
+                paymentMethod: formData.paymentMethod
+            })
+        });
+        
+        if (response && response.ok) {
+            // Clear cart
+            cart = [];
+            localStorage.setItem('cart', JSON.stringify(cart));
+            updateCartCount();
+            
+            // Close modal
+            closeCheckoutModal();
+            
+            // Show success message
+            await customAlert(
+                'Your order has been placed successfully! You will receive a confirmation email shortly.',
+                'success',
+                '🎉 Order Placed!'
+            );
+            
+            // Redirect to orders page
+            window.location.href = '/orders';
+        } else {
+            const error = await response.json();
+            await customAlert(
+                error.error || 'Failed to place order. Please try again.',
+                'error',
+                '❌ Order Failed'
+            );
+        }
+    } catch (error) {
+        console.error('Checkout error:', error);
+        await customAlert(
+            'An error occurred while processing your order. Please try again.',
+            'error',
+            '❌ Checkout Error'
+        );
+    }
+}
+
+// Orders page functions
+async function loadOrders() {
+    if (!currentUser) {
+        window.location.href = '/login';
+        return;
+    }
+    
+    try {
+        const response = await apiCallWithRetry('/api/orders');
+        if (!response || !response.ok) {
+            throw new Error('Failed to load orders');
+        }
+        
+        const orders = await response.json();
+        
+        const ordersContainer = document.getElementById('orders-container');
+        if (!ordersContainer) return;
+        
+        if (orders.length === 0) {
+            ordersContainer.innerHTML = '<p>No orders found</p>';
+            return;
+        }
+        
+        ordersContainer.innerHTML = orders.map(order => `
+            <div class="order-card">
+                <div class="order-header">
+                    <div>
+                        <h3>Order #${order._id.substr(-8)}</h3>
+                        <p>Date: ${new Date(order.orderDate).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                        <span class="order-status ${order.status}">${order.status.toUpperCase()}</span>
+                        <p><strong>Total: ${order.totalAmount}</strong></p>
+                    </div>
+                </div>
+                <div class="order-items">
+                    ${order.items.map(item => `
+                        <div class="order-item">
+                            <img src="${item.image || 'https://via.placeholder.com/60x60'}" alt="${item.name}">
+                            <div>
+                                <h4>${item.name}</h4>
+                                <p>Quantity: ${item.quantity}</p>
+                                <p>Price: ${item.price}</p>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${order.status === 'pending' || order.status === 'confirmed' ? 
+                    `<button onclick="cancelOrder('${order._id}')" class="btn-danger">Cancel Order</button>` : 
+                    ''
+                }
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading orders:', error);
+        await customAlert(
+            'Failed to load your orders. Please try again.',
+            'error',
+            '❌ Loading Error'
+        );
+    }
+}
+
+async function cancelOrder(orderId) {
+    const shouldCancel = await customConfirm(
+        'Are you sure you want to cancel this order? This action cannot be undone.',
+        'Cancel Order',
+        'Yes, Cancel',
+        'Keep Order'
+    );
+    
+    if (!shouldCancel) return;
+    
+    try {
+        const response = await apiCallWithRetry(`/api/orders/${orderId}/cancel`, {
+            method: 'PATCH'
+        });
+        
+        if (response && response.ok) {
+            showToast('Order cancelled successfully', 'success');
+            loadOrders();
+        } else {
+            const error = await response.json();
+            await customAlert(
+                error.error || 'Failed to cancel order.',
+                'error',
+                '❌ Cancellation Failed'
+            );
+        }
+    } catch (error) {
+        await customAlert(
+            'An error occurred while cancelling the order.',
+            'error',
+            '❌ Error'
+        );
+    }
+}
+
+async function loadFilters() {
+    try {
+        // Load categories
+        const categoriesResponse = await apiCallWithRetry('/api/categories');
+        if (categoriesResponse && categoriesResponse.ok) {
+            const categories = await categoriesResponse.json();
+            
+            const categorySelect = document.getElementById('category-filter');
+            if (categorySelect) {
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+        }
+
+        // Load brands
+        const brandsResponse = await apiCallWithRetry('/api/brands');
+        if (brandsResponse && brandsResponse.ok) {
+            const brands = await brandsResponse.json();
+            
+            const brandSelect = document.getElementById('brand-filter');
+            if (brandSelect) {
+                brands.forEach(brand => {
+                    const option = document.createElement('option');
+                    option.value = brand;
+                    option.textContent = brand;
+                    brandSelect.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading filters:', error);
+    }
+
 function customAlert(message, type = 'info', title = null) {
     const titles = {
         success: '✅ Success',
@@ -919,6 +1297,12 @@ function initializeEventHandlers() {
             e.preventDefault();
             handleRegister(e.target);
         }
+        
+        // Handle checkout form
+        if (e.target.id === 'checkout-form') {
+            e.preventDefault();
+            processCheckout();
+        }
     });
     
     // Universal click handler for buttons
@@ -956,6 +1340,70 @@ function initializeEventHandlers() {
             e.preventDefault();
             console.log('🚪 Logout button clicked');
             logout();
+        }
+    });
+    
+    // Payment method toggle
+    document.addEventListener('change', (e) => {
+        if (e.target.name === 'payment-method') {
+            const cardDetails = document.getElementById('card-details');
+            if (cardDetails) {
+                const isCard = e.target.value === 'credit_card' || e.target.value === 'debit_card';
+                cardDetails.style.display = isCard ? 'block' : 'none';
+            }
+        }
+    });
+    
+    // Card number formatting
+    document.addEventListener('input', (e) => {
+        if (e.target.id === 'card-number') {
+            let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+            let matches = value.match(/\d{4,16}/g);
+            let match = matches && matches[0] || '';
+            let parts = [];
+            for (let i = 0, len = match.length; i < len; i += 4) {
+                parts.push(match.substring(i, i + 4));
+            }
+            if (parts.length) {
+                e.target.value = parts.join(' ');
+            } else {
+                e.target.value = value;
+            }
+        }
+        
+        if (e.target.id === 'expiry') {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2, 4);
+            }
+            e.target.value = value;
+        }
+        
+        if (e.target.id === 'cvv') {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        }
+    });
+    
+    // Checkout form submission
+    document.addEventListener('submit', (e) => {
+        if (e.target.id === 'checkout-form') {
+            e.preventDefault();
+            processCheckout();
+        }
+    });
+    
+    // Close modal when clicking outside
+    document.addEventListener('click', (e) => {
+        const modal = document.getElementById('checkout-modal');
+        if (e.target === modal) {
+            closeCheckoutModal();
+        }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeCheckoutModal();
         }
     });
     
@@ -1083,6 +1531,21 @@ function initializePageContent() {
             if (document.getElementById('products-grid')) {
                 console.log('🛍️ Loading products page...');
                 loadProducts();
+                loadFilters();
+            }
+            break;
+        case '/cart':
+        case '/cart.html':
+            if (document.getElementById('cart-items')) {
+                console.log('🛒 Loading cart page...');
+                loadCartItems();
+            }
+            break;
+        case '/orders':
+        case '/orders.html':
+            if (document.getElementById('orders-container')) {
+                console.log('📦 Loading orders page...');
+                loadOrders();
             }
             break;
         case '/login':
