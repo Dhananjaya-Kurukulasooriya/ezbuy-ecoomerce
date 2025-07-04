@@ -1,4 +1,4 @@
-// frontend/public/app.js - CLEANED UP VERSION
+// frontend/public/app.js - FIXED FOR MICROSERVICES
 
 const API_BASE = '';
 let currentUser = null;
@@ -120,384 +120,6 @@ function removeToast(toast) {
     }
 }
 
-// Cart page functions
-async function loadCartItems() {
-    const cartContainer = document.getElementById('cart-items');
-    const cartSummary = document.getElementById('cart-summary');
-    
-    if (!cartContainer) return;
-    
-    if (cart.length === 0) {
-        cartContainer.innerHTML = '<p>Your cart is empty</p>';
-        if (cartSummary) cartSummary.innerHTML = '';
-        return;
-    }
-    
-    let total = 0;
-    const cartHTML = [];
-    
-    for (const item of cart) {
-        try {
-            const response = await apiCallWithRetry(`/api/products/${item.productId}`);
-            if (!response || !response.ok) continue;
-            
-            const product = await response.json();
-            const itemTotal = product.price * item.quantity;
-            total += itemTotal;
-            
-            cartHTML.push(`
-                <div class="cart-item">
-                    <img src="${product.image || 'https://via.placeholder.com/80x80'}" alt="${product.name}">
-                    <div class="cart-item-details">
-                        <h4>${product.name}</h4>
-                        <p class="cart-item-price">${product.price}</p>
-                        <div class="quantity-controls">
-                            <button onclick="updateCartQuantity('${product._id}', ${item.quantity - 1})">-</button>
-                            <input type="number" value="${item.quantity}" 
-                                   onchange="updateCartQuantity('${product._id}', this.value)"
-                                   min="1" max="${product.stock}">
-                            <button onclick="updateCartQuantity('${product._id}', ${item.quantity + 1})">+</button>
-                        </div>
-                        <p>Subtotal: ${itemTotal.toFixed(2)}</p>
-                    </div>
-                    <button onclick="removeFromCart('${product._id}')" class="btn-danger">Remove</button>
-                </div>
-            `);
-        } catch (error) {
-            console.error('Error loading cart item:', error);
-        }
-    }
-    
-    cartContainer.innerHTML = cartHTML.join('');
-    if (cartSummary) {
-        cartSummary.innerHTML = `
-            <div class="cart-total">Total: ${total.toFixed(2)}</div>
-            <button onclick="proceedToCheckout()" class="btn-primary" style="width: 100%;">
-                Proceed to Checkout
-            </button>
-        `;
-    }
-}
-
-// Checkout functions
-async function proceedToCheckout() {
-    if (!currentUser) {
-        const shouldLogin = await customConfirm(
-            'You need to be logged in to checkout. Would you like to login now?',
-            'Login Required',
-            'Login',
-            'Cancel'
-        );
-        if (shouldLogin) {
-            window.location.href = '/login';
-        }
-        return;
-    }
-    
-    if (cart.length === 0) {
-        await customAlert('Your cart is empty. Add some items before checkout.', 'warning', '🛒 Empty Cart');
-        return;
-    }
-    
-    showCheckoutModal();
-}
-
-function showCheckoutModal() {
-    // Pre-fill user email if available
-    if (currentUser && currentUser.email) {
-        const emailField = document.getElementById('email');
-        if (emailField) emailField.value = currentUser.email;
-    }
-    
-    // Load order summary
-    loadCheckoutSummary();
-    
-    // Show modal
-    const modal = document.getElementById('checkout-modal');
-    if (modal) {
-        modal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-    }
-}
-
-function closeCheckoutModal() {
-    const modal = document.getElementById('checkout-modal');
-    if (modal) {
-        modal.style.display = 'none';
-        document.body.style.overflow = 'auto';
-    }
-}
-
-async function loadCheckoutSummary() {
-    let subtotal = 0;
-    const summaryContainer = document.getElementById('checkout-order-summary');
-    if (!summaryContainer) return;
-    
-    const summaryHTML = [];
-    
-    for (const item of cart) {
-        try {
-            const response = await apiCallWithRetry(`/api/products/${item.productId}`);
-            if (!response || !response.ok) continue;
-            
-            const product = await response.json();
-            const itemTotal = product.price * item.quantity;
-            subtotal += itemTotal;
-            
-            summaryHTML.push(`
-                <div class="order-summary-item">
-                    <div>
-                        <strong>${product.name}</strong><br>
-                        <small>Qty: ${item.quantity} × ${product.price}</small>
-                    </div>
-                    <div><strong>${itemTotal.toFixed(2)}</strong></div>
-                </div>
-            `);
-        } catch (error) {
-            console.error('Error loading checkout item:', error);
-        }
-    }
-    
-    summaryContainer.innerHTML = summaryHTML.join('');
-    
-    // Calculate totals
-    const shipping = subtotal > 100 ? 0 : 9.99;
-    const tax = subtotal * 0.08;
-    const total = subtotal + shipping + tax;
-    
-    const subtotalEl = document.getElementById('checkout-subtotal');
-    const shippingEl = document.getElementById('checkout-shipping');
-    const taxEl = document.getElementById('checkout-tax');
-    const totalEl = document.getElementById('checkout-total');
-    
-    if (subtotalEl) subtotalEl.textContent = `${subtotal.toFixed(2)}`;
-    if (shippingEl) shippingEl.textContent = shipping === 0 ? 'FREE' : `${shipping.toFixed(2)}`;
-    if (taxEl) taxEl.textContent = `${tax.toFixed(2)}`;
-    if (totalEl) totalEl.textContent = `${total.toFixed(2)}`;
-}
-
-async function processCheckout() {
-    try {
-        // Collect form data
-        const formData = {
-            firstName: document.getElementById('first-name')?.value || '',
-            lastName: document.getElementById('last-name')?.value || '',
-            email: document.getElementById('email')?.value || '',
-            phone: document.getElementById('phone')?.value || '',
-            address: document.getElementById('address')?.value || '',
-            city: document.getElementById('city')?.value || '',
-            state: document.getElementById('state')?.value || '',
-            zip: document.getElementById('zip')?.value || '',
-            country: document.getElementById('country')?.value || '',
-            paymentMethod: document.querySelector('input[name="payment-method"]:checked')?.value || 'credit_card'
-        };
-        
-        // Validate required fields
-        const requiredFields = ['firstName', 'lastName', 'email', 'address', 'city', 'state', 'zip', 'country'];
-        for (const field of requiredFields) {
-            if (!formData[field]) {
-                await customAlert(
-                    `Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()} field.`,
-                    'warning',
-                    '⚠️ Missing Information'
-                );
-                return;
-            }
-        }
-        
-        // Prepare order items
-        const orderItems = cart.map(item => ({
-            productId: item.productId,
-            quantity: item.quantity
-        }));
-        
-        // Submit order
-        const response = await apiCallWithRetry('/api/orders', {
-            method: 'POST',
-            body: JSON.stringify({
-                items: orderItems,
-                shippingAddress: {
-                    street: formData.address,
-                    city: formData.city,
-                    state: formData.state,
-                    zipCode: formData.zip,
-                    country: formData.country
-                },
-                paymentMethod: formData.paymentMethod
-            })
-        });
-        
-        if (response && response.ok) {
-            // Clear cart
-            cart = [];
-            localStorage.setItem('cart', JSON.stringify(cart));
-            updateCartCount();
-            
-            // Close modal
-            closeCheckoutModal();
-            
-            // Show success message
-            await customAlert(
-                'Your order has been placed successfully! You will receive a confirmation email shortly.',
-                'success',
-                '🎉 Order Placed!'
-            );
-            
-            // Redirect to orders page
-            window.location.href = '/orders';
-        } else {
-            const error = await response.json();
-            await customAlert(
-                error.error || 'Failed to place order. Please try again.',
-                'error',
-                '❌ Order Failed'
-            );
-        }
-    } catch (error) {
-        console.error('Checkout error:', error);
-        await customAlert(
-            'An error occurred while processing your order. Please try again.',
-            'error',
-            '❌ Checkout Error'
-        );
-    }
-}
-
-// Orders page functions
-async function loadOrders() {
-    if (!currentUser) {
-        window.location.href = '/login';
-        return;
-    }
-    
-    try {
-        const response = await apiCallWithRetry('/api/orders');
-        if (!response || !response.ok) {
-            throw new Error('Failed to load orders');
-        }
-        
-        const orders = await response.json();
-        
-        const ordersContainer = document.getElementById('orders-container');
-        if (!ordersContainer) return;
-        
-        if (orders.length === 0) {
-            ordersContainer.innerHTML = '<p>No orders found</p>';
-            return;
-        }
-        
-        ordersContainer.innerHTML = orders.map(order => `
-            <div class="order-card">
-                <div class="order-header">
-                    <div>
-                        <h3>Order #${order._id.substr(-8)}</h3>
-                        <p>Date: ${new Date(order.orderDate).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                        <span class="order-status ${order.status}">${order.status.toUpperCase()}</span>
-                        <p><strong>Total: ${order.totalAmount}</strong></p>
-                    </div>
-                </div>
-                <div class="order-items">
-                    ${order.items.map(item => `
-                        <div class="order-item">
-                            <img src="${item.image || 'https://via.placeholder.com/60x60'}" alt="${item.name}">
-                            <div>
-                                <h4>${item.name}</h4>
-                                <p>Quantity: ${item.quantity}</p>
-                                <p>Price: ${item.price}</p>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                ${order.status === 'pending' || order.status === 'confirmed' ? 
-                    `<button onclick="cancelOrder('${order._id}')" class="btn-danger">Cancel Order</button>` : 
-                    ''
-                }
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Error loading orders:', error);
-        await customAlert(
-            'Failed to load your orders. Please try again.',
-            'error',
-            '❌ Loading Error'
-        );
-    }
-}
-
-async function cancelOrder(orderId) {
-    const shouldCancel = await customConfirm(
-        'Are you sure you want to cancel this order? This action cannot be undone.',
-        'Cancel Order',
-        'Yes, Cancel',
-        'Keep Order'
-    );
-    
-    if (!shouldCancel) return;
-    
-    try {
-        const response = await apiCallWithRetry(`/api/orders/${orderId}/cancel`, {
-            method: 'PATCH'
-        });
-        
-        if (response && response.ok) {
-            showToast('Order cancelled successfully', 'success');
-            loadOrders();
-        } else {
-            const error = await response.json();
-            await customAlert(
-                error.error || 'Failed to cancel order.',
-                'error',
-                '❌ Cancellation Failed'
-            );
-        }
-    } catch (error) {
-        await customAlert(
-            'An error occurred while cancelling the order.',
-            'error',
-            '❌ Error'
-        );
-    }
-}
-
-async function loadFilters() {
-    try {
-        // Load categories
-        const categoriesResponse = await apiCallWithRetry('/api/categories');
-        if (categoriesResponse && categoriesResponse.ok) {
-            const categories = await categoriesResponse.json();
-            
-            const categorySelect = document.getElementById('category-filter');
-            if (categorySelect) {
-                categories.forEach(category => {
-                    const option = document.createElement('option');
-                    option.value = category;
-                    option.textContent = category;
-                    categorySelect.appendChild(option);
-                });
-            }
-        }
-
-        // Load brands
-        const brandsResponse = await apiCallWithRetry('/api/brands');
-        if (brandsResponse && brandsResponse.ok) {
-            const brands = await brandsResponse.json();
-            
-            const brandSelect = document.getElementById('brand-filter');
-            if (brandSelect) {
-                brands.forEach(brand => {
-                    const option = document.createElement('option');
-                    option.value = brand;
-                    option.textContent = brand;
-                    brandSelect.appendChild(option);
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Error loading filters:', error);
-    }
-
 function customAlert(message, type = 'info', title = null) {
     const titles = {
         success: '✅ Success',
@@ -526,7 +148,7 @@ function customConfirm(message, title = 'Confirm Action', confirmText = 'Yes', c
     });
 }
 
-// Add retry mechanism for API calls
+// Enhanced API call function for microservices
 async function apiCallWithRetry(url, options = {}, retries = 3) {
     for (let i = 0; i < retries; i++) {
         try {
@@ -540,19 +162,24 @@ async function apiCallWithRetry(url, options = {}, retries = 3) {
                 headers.Authorization = `Bearer ${token}`;
             }
             
+            console.log(`🔄 API Call: ${url}`);
+            
             const response = await fetch(`${API_BASE}${url}`, {
                 ...options,
                 headers
             });
             
+            console.log(`📡 API Response: ${url} - ${response.status}`);
+            
             if (response.status === 401) {
+                console.log('🚪 Unauthorized - logging out');
                 logout();
                 return null;
             }
             
             return response;
         } catch (error) {
-            console.log(`API call attempt ${i + 1} failed:`, error);
+            console.log(`❌ API call attempt ${i + 1} failed:`, error);
             if (i === retries - 1) throw error;
             await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
         }
@@ -562,6 +189,7 @@ async function apiCallWithRetry(url, options = {}, retries = 3) {
 // Authentication functions
 async function login(email, password) {
     try {
+        console.log('🔐 Attempting login for:', email);
         const response = await fetch(`${API_BASE}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -575,17 +203,21 @@ async function login(email, password) {
         localStorage.setItem('user', JSON.stringify(data.user));
         currentUser = data.user;
         
+        console.log('✅ Login successful:', data.user);
+        
         showToast('Login successful! Welcome back.', 'success');
         setTimeout(() => {
             window.location.href = '/';
         }, 1000);
     } catch (error) {
+        console.error('❌ Login error:', error);
         throw error;
     }
 }
 
 async function register(username, email, password) {
     try {
+        console.log('📝 Attempting registration for:', email);
         const response = await fetch(`${API_BASE}/api/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -595,6 +227,8 @@ async function register(username, email, password) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         
+        console.log('✅ Registration successful');
+        
         await customAlert(
             'Registration successful! You can now login with your credentials.',
             'success',
@@ -602,11 +236,13 @@ async function register(username, email, password) {
         );
         window.location.reload();
     } catch (error) {
+        console.error('❌ Registration error:', error);
         throw error;
     }
 }
 
 function logout() {
+    console.log('🚪 Logging out...');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('cart');
@@ -628,6 +264,7 @@ async function checkAuth() {
     
     if (token && user) {
         currentUser = JSON.parse(user);
+        console.log('👤 Current user:', currentUser);
         updateNavigation();
         updateCartCount();
     }
@@ -722,11 +359,11 @@ function updateCartQuantity(productId, quantity) {
 // Product loading functions
 async function loadFeaturedProducts() {
     try {
-        console.log('Loading featured products...');
+        console.log('🛍️ Loading featured products...');
         const response = await apiCallWithRetry('/api/products');
         
         if (!response) {
-            console.error('No response from products API');
+            console.error('❌ No response from products API');
             return;
         }
         
@@ -735,11 +372,11 @@ async function loadFeaturedProducts() {
         }
         
         const products = await response.json();
-        console.log('Products loaded:', products);
+        console.log('✅ Products loaded:', products.length, 'items');
         
         const grid = document.getElementById('featured-products-grid');
         if (!grid) {
-            console.error('Featured products grid element not found');
+            console.error('❌ Featured products grid element not found');
             return;
         }
         
@@ -756,7 +393,7 @@ async function loadFeaturedProducts() {
             grid.innerHTML = '<p>No products available at the moment. Please try again later.</p>';
         }
     } catch (error) {
-        console.error('Error loading featured products:', error);
+        console.error('❌ Error loading featured products:', error);
         const grid = document.getElementById('featured-products-grid');
         if (grid) {
             grid.innerHTML = '<p>Unable to load products. Please check your connection and try again.</p>';
@@ -766,7 +403,7 @@ async function loadFeaturedProducts() {
 
 async function loadProducts() {
     try {
-        console.log('Loading products...');
+        console.log('🛍️ Loading products...');
         const category = document.getElementById('category-filter')?.value || '';
         const brand = document.getElementById('brand-filter')?.value || '';
         const search = document.getElementById('search-input')?.value || '';
@@ -782,11 +419,11 @@ async function loadProducts() {
         }
         
         const products = await response.json();
-        console.log('Products loaded:', products);
+        console.log('✅ Products loaded:', products.length, 'items');
         
         const grid = document.getElementById('products-grid');
         if (!grid) {
-            console.error('Products grid element not found');
+            console.error('❌ Products grid element not found');
             return;
         }
         
@@ -810,7 +447,7 @@ async function loadProducts() {
             grid.innerHTML = '<p>No products found matching your criteria.</p>';
         }
     } catch (error) {
-        console.error('Error loading products:', error);
+        console.error('❌ Error loading products:', error);
         const grid = document.getElementById('products-grid');
         if (grid) {
             grid.innerHTML = '<p>Unable to load products. Please try again later.</p>';
@@ -818,21 +455,415 @@ async function loadProducts() {
     }
 }
 
-// ADMIN FUNCTIONS - These are used by admin.html
+async function loadFilters() {
+    try {
+        // Load categories
+        const categoriesResponse = await apiCallWithRetry('/api/categories');
+        if (categoriesResponse && categoriesResponse.ok) {
+            const categories = await categoriesResponse.json();
+            
+            const categorySelect = document.getElementById('category-filter');
+            if (categorySelect) {
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+        }
+
+        // Load brands
+        const brandsResponse = await apiCallWithRetry('/api/brands');
+        if (brandsResponse && brandsResponse.ok) {
+            const brands = await brandsResponse.json();
+            
+            const brandSelect = document.getElementById('brand-filter');
+            if (brandSelect) {
+                brands.forEach(brand => {
+                    const option = document.createElement('option');
+                    option.value = brand;
+                    option.textContent = brand;
+                    brandSelect.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error loading filters:', error);
+    }
+}
+
+// Cart page functions
+async function loadCartItems() {
+    const cartContainer = document.getElementById('cart-items');
+    const cartSummary = document.getElementById('cart-summary');
+    
+    if (!cartContainer) return;
+    
+    if (cart.length === 0) {
+        cartContainer.innerHTML = '<p>Your cart is empty</p>';
+        if (cartSummary) cartSummary.innerHTML = '';
+        return;
+    }
+    
+    let total = 0;
+    const cartHTML = [];
+    
+    for (const item of cart) {
+        try {
+            const response = await apiCallWithRetry(`/api/products/${item.productId}`);
+            if (!response || !response.ok) continue;
+            
+            const product = await response.json();
+            const itemTotal = product.price * item.quantity;
+            total += itemTotal;
+            
+            cartHTML.push(`
+                <div class="cart-item">
+                    <img src="${product.image || 'https://via.placeholder.com/80x80'}" alt="${product.name}">
+                    <div class="cart-item-details">
+                        <h4>${product.name}</h4>
+                        <p class="cart-item-price">$${product.price}</p>
+                        <div class="quantity-controls">
+                            <button onclick="updateCartQuantity('${product._id}', ${item.quantity - 1})">-</button>
+                            <input type="number" value="${item.quantity}" 
+                                   onchange="updateCartQuantity('${product._id}', this.value)"
+                                   min="1" max="${product.stock}">
+                            <button onclick="updateCartQuantity('${product._id}', ${item.quantity + 1})">+</button>
+                        </div>
+                        <p>Subtotal: $${itemTotal.toFixed(2)}</p>
+                    </div>
+                    <button onclick="removeFromCart('${product._id}')" class="btn-danger">Remove</button>
+                </div>
+            `);
+        } catch (error) {
+            console.error('❌ Error loading cart item:', error);
+        }
+    }
+    
+    cartContainer.innerHTML = cartHTML.join('');
+    if (cartSummary) {
+        cartSummary.innerHTML = `
+            <div class="cart-total">Total: $${total.toFixed(2)}</div>
+            <button onclick="proceedToCheckout()" class="btn-primary" style="width: 100%;">
+                Proceed to Checkout
+            </button>
+        `;
+    }
+}
+
+// Checkout functions
+async function proceedToCheckout() {
+    if (!currentUser) {
+        const shouldLogin = await customConfirm(
+            'You need to be logged in to checkout. Would you like to login now?',
+            'Login Required',
+            'Login',
+            'Cancel'
+        );
+        if (shouldLogin) {
+            window.location.href = '/login';
+        }
+        return;
+    }
+    
+    if (cart.length === 0) {
+        await customAlert('Your cart is empty. Add some items before checkout.', 'warning', '🛒 Empty Cart');
+        return;
+    }
+    
+    showCheckoutModal();
+}
+
+function showCheckoutModal() {
+    // Pre-fill user email if available
+    if (currentUser && currentUser.email) {
+        const emailField = document.getElementById('email');
+        if (emailField) emailField.value = currentUser.email;
+    }
+    
+    // Load order summary
+    loadCheckoutSummary();
+    
+    // Show modal
+    const modal = document.getElementById('checkout-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeCheckoutModal() {
+    const modal = document.getElementById('checkout-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+}
+
+async function loadCheckoutSummary() {
+    let subtotal = 0;
+    const summaryContainer = document.getElementById('checkout-order-summary');
+    if (!summaryContainer) return;
+    
+    const summaryHTML = [];
+    
+    for (const item of cart) {
+        try {
+            const response = await apiCallWithRetry(`/api/products/${item.productId}`);
+            if (!response || !response.ok) continue;
+            
+            const product = await response.json();
+            const itemTotal = product.price * item.quantity;
+            subtotal += itemTotal;
+            
+            summaryHTML.push(`
+                <div class="order-summary-item">
+                    <div>
+                        <strong>${product.name}</strong><br>
+                        <small>Qty: ${item.quantity} × $${product.price}</small>
+                    </div>
+                    <div><strong>$${itemTotal.toFixed(2)}</strong></div>
+                </div>
+            `);
+        } catch (error) {
+            console.error('❌ Error loading checkout item:', error);
+        }
+    }
+    
+    summaryContainer.innerHTML = summaryHTML.join('');
+    
+    // Calculate totals
+    const shipping = subtotal > 100 ? 0 : 9.99;
+    const tax = subtotal * 0.08;
+    const total = subtotal + shipping + tax;
+    
+    const subtotalEl = document.getElementById('checkout-subtotal');
+    const shippingEl = document.getElementById('checkout-shipping');
+    const taxEl = document.getElementById('checkout-tax');
+    const totalEl = document.getElementById('checkout-total');
+    
+    if (subtotalEl) subtotalEl.textContent = `$${subtotal.toFixed(2)}`;
+    if (shippingEl) shippingEl.textContent = shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`;
+    if (taxEl) taxEl.textContent = `$${tax.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `$${total.toFixed(2)}`;
+}
+
+async function processCheckout() {
+    try {
+        console.log('🛒 Processing checkout...');
+        
+        // Collect form data
+        const formData = {
+            firstName: document.getElementById('first-name')?.value || '',
+            lastName: document.getElementById('last-name')?.value || '',
+            email: document.getElementById('email')?.value || '',
+            phone: document.getElementById('phone')?.value || '',
+            address: document.getElementById('address')?.value || '',
+            city: document.getElementById('city')?.value || '',
+            state: document.getElementById('state')?.value || '',
+            zip: document.getElementById('zip')?.value || '',
+            country: document.getElementById('country')?.value || '',
+            paymentMethod: document.querySelector('input[name="payment-method"]:checked')?.value || 'credit_card'
+        };
+        
+        // Validate required fields
+        const requiredFields = ['firstName', 'lastName', 'email', 'address', 'city', 'state', 'zip', 'country'];
+        for (const field of requiredFields) {
+            if (!formData[field]) {
+                await customAlert(
+                    `Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()} field.`,
+                    'warning',
+                    '⚠️ Missing Information'
+                );
+                return;
+            }
+        }
+        
+        // Prepare order items
+        const orderItems = cart.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+        }));
+        
+        console.log('📦 Submitting order:', orderItems);
+        
+        // Submit order
+        const response = await apiCallWithRetry('/api/orders', {
+            method: 'POST',
+            body: JSON.stringify({
+                items: orderItems,
+                shippingAddress: {
+                    street: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    zipCode: formData.zip,
+                    country: formData.country
+                },
+                paymentMethod: formData.paymentMethod
+            })
+        });
+        
+        if (response && response.ok) {
+            console.log('✅ Order placed successfully');
+            
+            // Clear cart
+            cart = [];
+            localStorage.setItem('cart', JSON.stringify(cart));
+            updateCartCount();
+            
+            // Close modal
+            closeCheckoutModal();
+            
+            // Show success message
+            await customAlert(
+                'Your order has been placed successfully! You will receive a confirmation email shortly.',
+                'success',
+                '🎉 Order Placed!'
+            );
+            
+            // Redirect to orders page
+            window.location.href = '/orders';
+        } else {
+            const error = await response.json();
+            console.error('❌ Order failed:', error);
+            await customAlert(
+                error.error || 'Failed to place order. Please try again.',
+                'error',
+                '❌ Order Failed'
+            );
+        }
+    } catch (error) {
+        console.error('❌ Checkout error:', error);
+        await customAlert(
+            'An error occurred while processing your order. Please try again.',
+            'error',
+            '❌ Checkout Error'
+        );
+    }
+}
+
+// Orders page functions
+async function loadOrders() {
+    if (!currentUser) {
+        window.location.href = '/login';
+        return;
+    }
+    
+    try {
+        console.log('📋 Loading user orders...');
+        const response = await apiCallWithRetry('/api/orders');
+        if (!response || !response.ok) {
+            throw new Error('Failed to load orders');
+        }
+        
+        const orders = await response.json();
+        console.log('✅ Orders loaded:', orders.length, 'orders');
+        
+        const ordersContainer = document.getElementById('orders-container');
+        if (!ordersContainer) return;
+        
+        if (orders.length === 0) {
+            ordersContainer.innerHTML = '<p>No orders found</p>';
+            return;
+        }
+        
+        ordersContainer.innerHTML = orders.map(order => `
+            <div class="order-card">
+                <div class="order-header">
+                    <div>
+                        <h3>Order #${order._id.substr(-8)}</h3>
+                        <p>Date: ${new Date(order.orderDate).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                        <span class="order-status ${order.status}">${order.status.toUpperCase()}</span>
+                        <p><strong>Total: $${order.totalAmount}</strong></p>
+                    </div>
+                </div>
+                <div class="order-items">
+                    ${order.items.map(item => `
+                        <div class="order-item">
+                            <img src="${item.image || 'https://via.placeholder.com/60x60'}" alt="${item.name}">
+                            <div>
+                                <h4>${item.name}</h4>
+                                <p>Quantity: ${item.quantity}</p>
+                                <p>Price: $${item.price}</p>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${order.status === 'pending' || order.status === 'confirmed' ? 
+                    `<button onclick="cancelOrder('${order._id}')" class="btn-danger">Cancel Order</button>` : 
+                    ''
+                }
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('❌ Error loading orders:', error);
+        await customAlert(
+            'Failed to load your orders. Please try again.',
+            'error',
+            '❌ Loading Error'
+        );
+    }
+}
+
+async function cancelOrder(orderId) {
+    const shouldCancel = await customConfirm(
+        'Are you sure you want to cancel this order? This action cannot be undone.',
+        'Cancel Order',
+        'Yes, Cancel',
+        'Keep Order'
+    );
+    
+    if (!shouldCancel) return;
+    
+    try {
+        console.log('❌ Cancelling order:', orderId);
+        const response = await apiCallWithRetry(`/api/orders/${orderId}/cancel`, {
+            method: 'PATCH'
+        });
+        
+        if (response && response.ok) {
+            console.log('✅ Order cancelled successfully');
+            showToast('Order cancelled successfully', 'success');
+            loadOrders();
+        } else {
+            const error = await response.json();
+            console.error('❌ Cancel order failed:', error);
+            await customAlert(
+                error.error || 'Failed to cancel order.',
+                'error',
+                '❌ Cancellation Failed'
+            );
+        }
+    } catch (error) {
+        console.error('❌ Cancel order error:', error);
+        await customAlert(
+            'An error occurred while cancelling the order.',
+            'error',
+            '❌ Error'
+        );
+    }
+}
+
+// ADMIN FUNCTIONS - Fixed for microservices
 async function loadAdminDashboard() {
-    console.log('🔄 Loading admin dashboard...');
+    console.log('👑 Loading admin dashboard...');
     if (currentUser?.role !== 'admin') {
         window.location.href = '/';
         return;
     }
     
     try {
+        // Call the correct admin endpoint for order stats
         const response = await apiCallWithRetry('/api/admin/orders/stats');
         if (!response || !response.ok) {
             throw new Error('Failed to load admin stats');
         }
         
         const stats = await response.json();
+        console.log('✅ Admin stats loaded:', stats);
         
         const adminContent = document.getElementById('admin-content');
         if (adminContent) {
@@ -876,7 +907,7 @@ async function loadAdminDashboard() {
             `;
         }
     } catch (error) {
-        console.error('Error loading admin dashboard:', error);
+        console.error('❌ Error loading admin dashboard:', error);
         const adminContent = document.getElementById('admin-content');
         if (adminContent) {
             adminContent.innerHTML = `
@@ -897,7 +928,7 @@ function getStatusCount(stats, status) {
 }
 
 async function loadAdminProducts() {
-    console.log('🔄 Loading admin products...');
+    console.log('📦 Loading admin products...');
     try {
         const response = await apiCallWithRetry('/api/products');
         if (!response || !response.ok) {
@@ -905,6 +936,7 @@ async function loadAdminProducts() {
         }
         
         const products = await response.json();
+        console.log('✅ Admin products loaded:', products.length, 'products');
         
         const adminContent = document.getElementById('admin-content');
         if (adminContent) {
@@ -966,7 +998,7 @@ async function loadAdminProducts() {
             `;
         }
     } catch (error) {
-        console.error('Error loading admin products:', error);
+        console.error('❌ Error loading admin products:', error);
         const adminContent = document.getElementById('admin-content');
         if (adminContent) {
             adminContent.innerHTML = `
@@ -1061,17 +1093,20 @@ async function submitProductForm(event) {
     };
     
     try {
+        console.log('💾 Adding product:', productData);
         const response = await apiCallWithRetry('/api/products', {
             method: 'POST',
             body: JSON.stringify(productData)
         });
         
         if (response && response.ok) {
+            console.log('✅ Product added successfully');
             showToast('Product added successfully!', 'success');
             hideProductForm();
             loadAdminProducts();
         } else {
             const error = await response.json();
+            console.error('❌ Add product failed:', error);
             await customAlert(
                 error.error || 'Failed to add product.',
                 'error',
@@ -1079,6 +1114,7 @@ async function submitProductForm(event) {
             );
         }
     } catch (error) {
+        console.error('❌ Add product error:', error);
         await customAlert(
             'An error occurred while adding the product.',
             'error',
@@ -1098,15 +1134,18 @@ async function deleteProduct(productId) {
     if (!shouldDelete) return;
     
     try {
+        console.log('🗑️ Deleting product:', productId);
         const response = await apiCallWithRetry(`/api/products/${productId}`, {
             method: 'DELETE'
         });
         
         if (response && response.ok) {
+            console.log('✅ Product deleted successfully');
             showToast('Product deleted successfully!', 'success');
             loadAdminProducts();
         } else {
             const error = await response.json();
+            console.error('❌ Delete product failed:', error);
             await customAlert(
                 error.error || 'Failed to delete product.',
                 'error',
@@ -1114,6 +1153,7 @@ async function deleteProduct(productId) {
             );
         }
     } catch (error) {
+        console.error('❌ Delete product error:', error);
         await customAlert(
             'An error occurred while deleting the product.',
             'error',
@@ -1123,8 +1163,9 @@ async function deleteProduct(productId) {
 }
 
 async function loadAdminOrders() {
-    console.log('🔄 Loading admin orders...');
+    console.log('📋 Loading admin orders...');
     try {
+        // Call the correct admin orders endpoint
         const response = await apiCallWithRetry('/api/admin/orders');
         if (!response || !response.ok) {
             throw new Error('Failed to load admin orders');
@@ -1132,6 +1173,7 @@ async function loadAdminOrders() {
         
         const data = await response.json();
         const orders = data.orders || [];
+        console.log('✅ Admin orders loaded:', orders.length, 'orders');
         
         const adminContent = document.getElementById('admin-content');
         if (adminContent) {
@@ -1195,7 +1237,7 @@ async function loadAdminOrders() {
             `;
         }
     } catch (error) {
-        console.error('Error loading admin orders:', error);
+        console.error('❌ Error loading admin orders:', error);
         const adminContent = document.getElementById('admin-content');
         if (adminContent) {
             adminContent.innerHTML = `
@@ -1237,16 +1279,19 @@ async function updateOrderStatus(orderId, newStatus) {
     }
     
     try {
+        console.log('🔄 Updating order status:', orderId, 'to', newStatus);
         const response = await apiCallWithRetry(`/api/orders/${orderId}/status`, {
             method: 'PATCH',
             body: JSON.stringify({ status: newStatus })
         });
         
         if (response && response.ok) {
+            console.log('✅ Order status updated successfully');
             showToast('Order status updated successfully!', 'success');
             loadAdminOrders();
         } else {
             const error = await response.json();
+            console.error('❌ Update order status failed:', error);
             await customAlert(
                 error.error || 'Failed to update order status.',
                 'error',
@@ -1255,6 +1300,7 @@ async function updateOrderStatus(orderId, newStatus) {
             event.target.value = '';
         }
     } catch (error) {
+        console.error('❌ Update order status error:', error);
         await customAlert(
             'An error occurred while updating the order status.',
             'error',
@@ -1266,17 +1312,19 @@ async function updateOrderStatus(orderId, newStatus) {
 
 // SINGLE DOMContentLoaded EVENT LISTENER
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 App initializing...');
+    console.log('🚀 EzBuy app initializing...');
     
     // Initialize auth and cart
     checkAuth();
     updateCartCount();
     
-    // Initialize event handlers with robust delegation
+    // Initialize event handlers
     initializeEventHandlers();
     
     // Initialize page-specific content
     initializePageContent();
+    
+    console.log('✅ EzBuy app initialized successfully');
 });
 
 function initializeEventHandlers() {
@@ -1351,44 +1399,6 @@ function initializeEventHandlers() {
                 const isCard = e.target.value === 'credit_card' || e.target.value === 'debit_card';
                 cardDetails.style.display = isCard ? 'block' : 'none';
             }
-        }
-    });
-    
-    // Card number formatting
-    document.addEventListener('input', (e) => {
-        if (e.target.id === 'card-number') {
-            let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
-            let matches = value.match(/\d{4,16}/g);
-            let match = matches && matches[0] || '';
-            let parts = [];
-            for (let i = 0, len = match.length; i < len; i += 4) {
-                parts.push(match.substring(i, i + 4));
-            }
-            if (parts.length) {
-                e.target.value = parts.join(' ');
-            } else {
-                e.target.value = value;
-            }
-        }
-        
-        if (e.target.id === 'expiry') {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length >= 2) {
-                value = value.substring(0, 2) + '/' + value.substring(2, 4);
-            }
-            e.target.value = value;
-        }
-        
-        if (e.target.id === 'cvv') {
-            e.target.value = e.target.value.replace(/\D/g, '');
-        }
-    });
-    
-    // Checkout form submission
-    document.addEventListener('submit', (e) => {
-        if (e.target.id === 'checkout-form') {
-            e.preventDefault();
-            processCheckout();
         }
     });
     
@@ -1555,4 +1565,4 @@ function initializePageContent() {
     }
 }
 
-console.log('✅ Enhanced app.js loaded successfully');
+console.log('✅ EzBuy microservices app.js loaded successfully');

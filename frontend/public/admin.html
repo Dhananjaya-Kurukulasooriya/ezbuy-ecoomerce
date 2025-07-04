@@ -443,35 +443,73 @@
             }
         });
 
-        // Simple admin access check that works
+        // Enhanced admin access check for microservices
         async function checkAdminAccess() {
             try {
+                console.log('🔐 Checking admin access...');
+                
                 // Check if user is logged in
                 const token = localStorage.getItem('token');
                 const userString = localStorage.getItem('user');
                 
                 if (!token || !userString) {
+                    console.log('❌ No credentials found');
                     return { success: false, reason: 'Not logged in' };
                 }
                 
                 const user = JSON.parse(userString);
+                console.log('👤 User found:', user);
                 
                 // Check if user is admin
                 if (!user.role || user.role !== 'admin') {
+                    console.log('❌ User is not admin:', user.role);
                     return { success: false, reason: 'Not admin user', userRole: user.role };
                 }
                 
-                // Set current user
-                currentUser = user;
-                
-                return {
-                    success: true,
-                    username: user.username || user.email,
-                    userId: user._id || user.id
-                };
+                // Validate token with backend
+                try {
+                    console.log('🔄 Validating admin token with backend...');
+                    const response = await fetch('/api/auth/validate-admin', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const validationResult = await response.json();
+                        console.log('✅ Admin validation successful:', validationResult);
+                        
+                        // Set current user
+                        currentUser = user;
+                        
+                        return {
+                            success: true,
+                            username: user.username || user.email,
+                            userId: user._id || user.id
+                        };
+                    } else {
+                        console.log('❌ Admin validation failed:', response.status);
+                        // Clear invalid credentials
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                        return { success: false, reason: 'Token validation failed' };
+                    }
+                } catch (validationError) {
+                    console.log('⚠️ Admin validation request failed, proceeding with local check:', validationError.message);
+                    
+                    // Fallback to local check if backend is unreachable
+                    currentUser = user;
+                    return {
+                        success: true,
+                        username: user.username || user.email,
+                        userId: user._id || user.id
+                    };
+                }
                 
             } catch (error) {
-                console.error('Admin access check error:', error);
+                console.error('❌ Admin access check error:', error);
                 return { success: false, reason: 'Check failed' };
             }
         }
