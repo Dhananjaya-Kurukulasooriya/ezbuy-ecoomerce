@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_ROOT_PASSWORD: ParipaLaKaThum@!
     ports:
       - "27017:27017"
     volumes:
@@ -28,7 +28,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/ezbuy?authSource=admin
+      - MONGODB_URI=mongodb://admin:ParipaLaKaThum@!@mongodb:27017/ezbuy?authSource=admin
       - JWT_SECRET=your-secret-key-here
     depends_on:
       - mongodb
@@ -47,7 +47,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3002
-      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/ezbuy?authSource=admin
+      - MONGODB_URI=mongodb://admin:ParipaLaKaThum@!@mongodb:27017/ezbuy?authSource=admin
     depends_on:
       - mongodb
     networks:
@@ -65,7 +65,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3003
-      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/ezbuy?authSource=admin
+      - MONGODB_URI=mongodb://admin:ParipaLaKaThum@!@mongodb:27017/ezbuy?authSource=admin
       - USER_SERVICE_URL=http://user-service:3001
       - PRODUCT_SERVICE_URL=http://product-service:3002
     depends_on:
