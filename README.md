@@ -1,5 +1,3 @@
-# ezbuy-ecoomerce
-
 # EzBuy - Premium Electronics E-commerce Platform
 
 A modern, microservices-based e-commerce platform specializing in premium electrical devices and electronics.
